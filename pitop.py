@@ -4,20 +4,23 @@ import plotext as plt
 
 cpu_percentages = []
 
-def get_battery_info():
-    battery = psutil.sensors_battery()
-    if battery:
-        percent = battery.percent
-        if percent > 65:
-            battery_attr = ('high_battery', f"{percent}%")
-        elif percent > 20:
-            battery_attr = ('medium_battery', f"{percent}%")
+def create_battery_progress_bar(battery_percentage, bar_length=20):
+    if battery_percentage:
+        # Choose the color based on battery level
+        if battery_percentage > 65:
+            color = 'high_battery'
+        elif battery_percentage > 20:
+            color = 'medium_battery'
         else:
-            battery_attr = ('low_battery', f"{percent}%")
+            color = 'low_battery'
 
-        return [('normal', "Battery Percentage: "), battery_attr]
+        # Calculate the number of "filled" characters in the bar based on battery percentage
+        filled_length = int(round(bar_length * battery_percentage / 100.0))
+        bar = '|' * filled_length + ' ' * (bar_length - filled_length)
+        return (color, f"[{bar}] {battery_percentage}%")
     else:
-        return [('normal', "Battery info not available")]
+        return ('normal', "[No Battery Info]")
+
 
 def get_cpu_info():
     return ('normal', f"CPU Usage: {psutil.cpu_percent()}%")
@@ -105,7 +108,13 @@ def refresh(_loop, _data):
     ram_usage_bar = create_ram_progress_bar(ram.percent)
     ram_usage_text.set_text(ram_usage_bar)
     
-    battery_text.set_text(get_battery_info())
+    battery = psutil.sensors_battery()
+    if battery:
+        battery_bar = create_battery_progress_bar(battery.percent)
+    else:
+        battery_bar = create_battery_progress_bar(None)
+    battery_text.set_text(battery_bar)
+    
     cpu_text.set_text(get_cpu_info())
     ram_text.set_text(get_ram_info())
     #network_text.set_text(get_network_info())
@@ -158,7 +167,8 @@ pile = urwid.Pile([
 ])
 
 filler = urwid.Filler(pile, valign='top')
+bordered_filler = urwid.LineBox(filler)
 
-loop = urwid.MainLoop(filler, palette=palette)
+loop = urwid.MainLoop(bordered_filler, palette=palette)
 loop.set_alarm_in(2, refresh)
 loop.run()
