@@ -31,10 +31,10 @@ def get_ram_info():
 
 def get_network_info():
     net_io = psutil.net_io_counters()
-    return ('normal', f"| ↑ {net_io.bytes_sent / (1024 * 1024):.2f} MB, ↓ {net_io.bytes_recv / (1024 * 1024):.2f} MB")
+    return ('normal', f"| ↑ {net_io.bytes_sent / (1024 * 1024):.2f}MB ↓ {net_io.bytes_recv / (1024 * 1024):.2f}MB")
 title_columns = urwid.Columns([
-    ('weight', 1, urwid.AttrMap(urwid.Text('pitop v0.1', align='left'), 'header')),
-    ('weight', 3, urwid.AttrMap(urwid.Text(get_network_info(), align='right'), 'header'))
+    ('weight', 1, urwid.AttrMap(urwid.Text('🐍Pitop v0.1', align='left'), 'header')),
+    ('weight', 2, urwid.AttrMap(urwid.Text(get_network_info(), align='right'), 'header'))
 ])
 title_text = urwid.AttrMap(title_columns, 'header')
 
@@ -142,33 +142,38 @@ palette = [
 battery_text = urwid.Text("")
 cpu_text = urwid.Text("")
 ram_text = urwid.Text("")
-network_text = urwid.Text("")
+#network_text = urwid.Text("")
 cpu_usage_text = urwid.Text("")
 ram_usage_text = urwid.Text("")
 #title_text = urwid.AttrMap(urwid.Text("pitop v0.1", align='center'), 'header')
+
+title_bar = urwid.AttrMap(urwid.Columns([
+    ('weight', 1, urwid.Text('🐍Pitop v0.1', align='left')),
+    ('weight', 2, urwid.Text(get_network_info(), align='right'))
+]), 'header')
 
 process_items = [urwid.Text("")]
 process_list = urwid.ListBox(urwid.SimpleFocusListWalker(process_items))
 
 process_list_box = urwid.BoxAdapter(process_list, height=8)
 
-pile = urwid.Pile([
-    title_text,
-    battery_text, 
-    #cpu_text, 
-    #ram_text,
-    #network_text, 
+main_content_pile = urwid.Pile([
+    battery_text,
     cpu_usage_text,
     ram_usage_text,
-    urwid.Divider(), 
+    urwid.Divider(),
     urwid.Text('Running Processes:'),
-    process_list_box
-    
+    urwid.BoxAdapter(urwid.ListBox(urwid.SimpleFocusListWalker(get_process_list())), height=8)
 ])
 
-filler = urwid.Filler(pile, valign='top')
-bordered_filler = urwid.LineBox(filler)
+top_layout = urwid.Pile([
+    title_bar,
+    urwid.LineBox(main_content_pile)
+])
 
-loop = urwid.MainLoop(bordered_filler, palette=palette)
+filler = urwid.Filler(top_layout, valign='top')
+#bordered_filler = urwid.LineBox(filler)
+
+loop = urwid.MainLoop(filler, palette=palette)
 loop.set_alarm_in(2, refresh)
 loop.run()
