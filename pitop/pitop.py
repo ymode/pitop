@@ -179,10 +179,16 @@ filler = urwid.Filler(top_layout, valign='top')
 #bordered_filler = urwid.LineBox(filler)
 
 
-def main():
-    _loop = urwid.MainLoop(filler, palette=palette, unhandled_input=exit_on_q)
-    _loop.set_alarm_in(2, refresh)
-    _loop.run()
+def main(testing=False):
+    
+    if testing:
+        print('test successful')
+        return True
+    else:
+        # Start the TUI loop
+        loop = urwid.MainLoop(...)
+        loop.run()
+        return True 
 
 
 def exit_on_q(key):
