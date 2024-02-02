@@ -90,8 +90,6 @@ def create_ram_progress_bar(ram_usage, bar_length=20):
 
 
 def refresh(_loop, _data):
-    
-    
     # Update the CPU usage data
     cpu_usage = psutil.cpu_percent()
     cpu_percentages.append(cpu_usage)
@@ -100,29 +98,30 @@ def refresh(_loop, _data):
         cpu_percentages.pop(0)
     
     # Update the CPU usage progress bar
-    #cpu_usage = psutil.cpu_percent()
     cpu_bar = create_cpu_progress_bar(cpu_usage)
     cpu_usage_text.set_text(cpu_bar)
 
+    # Update RAM usage progress bar
     ram = psutil.virtual_memory()
     ram_usage_bar = create_ram_progress_bar(ram.percent)
     ram_usage_text.set_text(ram_usage_bar)
     
+    # Update battery progress bar
     battery = psutil.sensors_battery()
     if battery:
         battery_bar = create_battery_progress_bar(battery.percent)
     else:
         battery_bar = create_battery_progress_bar(None)
     battery_text.set_text(battery_bar)
-    
-    cpu_text.set_text(get_cpu_info())
-    ram_text.set_text(get_ram_info())
-    #network_text.set_text(get_network_info())
-    title_text.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_text.base_widget.contents[1][1])
+
+    # Refresh network info
+    title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
 
     # Refresh process list with a limited number of processes as Columns widgets
-    process_list_items = get_process_list(max_processes=6)
-    process_list.body = urwid.SimpleFocusListWalker(process_list_items)
+    new_process_list_items = get_process_list(max_processes=6)
+    process_list.body = urwid.SimpleFocusListWalker(new_process_list_items)
+
+    # Set up the next callback for refreshing.
     loop.set_alarm_in(2, refresh)
 
 #plot cpu
@@ -152,9 +151,9 @@ title_bar = urwid.AttrMap(urwid.Columns([
     ('weight', 2, urwid.Text(get_network_info(), align='right'))
 ]), 'header')
 
-process_items = [urwid.Text("")]
-process_list = urwid.ListBox(urwid.SimpleFocusListWalker(process_items))
-
+# Create the process list ListBox here and pass it to the BoxAdapter
+process_items = urwid.SimpleFocusListWalker(get_process_list())
+process_list = urwid.ListBox(process_items)
 process_list_box = urwid.BoxAdapter(process_list, height=8)
 
 main_content_pile = urwid.Pile([
@@ -163,7 +162,7 @@ main_content_pile = urwid.Pile([
     ram_usage_text,
     urwid.Divider(),
     urwid.Text('Running Processes:'),
-    urwid.BoxAdapter(urwid.ListBox(urwid.SimpleFocusListWalker(get_process_list())), height=8)
+    process_list_box
 ])
 
 top_layout = urwid.Pile([
