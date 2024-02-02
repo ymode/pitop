@@ -4,24 +4,50 @@ import plotext as plt
 
 cpu_percentages = []
 
-def create_battery_progress_bar(battery_percentage, bar_length=20):
-    if battery_percentage:
+def create_battery_progress_bar(bar_length=20):
+    battery = psutil.sensors_battery()
+    if battery:
+        percent = battery.percent
         # Choose the color based on battery level
-        if battery_percentage > 65:
+        if percent > 65:
             color = 'high_battery'
-        elif battery_percentage > 20:
+        elif percent > 20:
             color = 'medium_battery'
         else:
             color = 'low_battery'
-
+        
         # Calculate the number of "filled" characters in the bar based on battery percentage
-        filled_length = int(round(bar_length * battery_percentage / 100.0))
+        filled_length = int(round(bar_length * percent / 100.0))
         bar = '|' * filled_length + ' ' * (bar_length - filled_length)
-        return (color, f"[{bar}] {battery_percentage}%")
+        battery_bar_text = f"[{bar}] {percent}%"
+        
+        # If the power is plugged in, show a plugged in emoji or text
+        if battery.power_plugged:
+            battery_bar_text += " 🔌"
+        return (color, battery_bar_text)
     else:
-        return ('normal', "[No Battery Info]")
+        # No battery info available, perhaps this is a desktop or server
+        return ('normal', "Power:🔌")
 
+footer_text = urwid.Text("", align='left')
 
+def create_footer():
+    # Check if the system is plugged in or if there's a battery
+    battery = psutil.sensors_battery()
+    if battery:
+        # If the power is plugged in, show a plugged-in emoji or text
+        if battery.power_plugged:
+            return "🔌 Plugged In"
+        else:
+            return "🔋 Battery"
+    else:
+        # No battery info available, perhaps this is a desktop or server
+        return "⚡️ No Battery Info"
+
+def update_footer():
+    # Set the footer text to display power information
+    footer_text.set_text(create_footer())
+    
 def get_cpu_info():
     return ('normal', f"CPU Usage: {psutil.cpu_percent()}%")
 
@@ -101,18 +127,16 @@ def refresh(_loop, _data):
     cpu_bar = create_cpu_progress_bar(cpu_usage)
     cpu_usage_text.set_text(cpu_bar)
 
+    #Update footer
+    update_footer()
+
     # Update RAM usage progress bar
     ram = psutil.virtual_memory()
     ram_usage_bar = create_ram_progress_bar(ram.percent)
     ram_usage_text.set_text(ram_usage_bar)
     
     # Update battery progress bar
-    battery = psutil.sensors_battery()
-    if battery:
-        battery_bar = create_battery_progress_bar(battery.percent)
-    else:
-        battery_bar = create_battery_progress_bar(None)
-    battery_text.set_text(battery_bar)
+    battery_text.set_text(create_battery_progress_bar())
 
     # Refresh network info
     title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
@@ -137,6 +161,8 @@ palette = [
     ('header', 'white', 'light blue'),
 ]
 
+
+footer_bar = urwid.AttrMap(footer_text, 'header')
 # Text widgets for system info
 battery_text = urwid.Text("")
 cpu_text = urwid.Text("")
@@ -167,7 +193,8 @@ main_content_pile = urwid.Pile([
 
 top_layout = urwid.Pile([
     title_bar,
-    urwid.LineBox(main_content_pile)
+    urwid.LineBox(main_content_pile),
+    footer_bar
 ])
 
 filler = urwid.Filler(top_layout, valign='top')
