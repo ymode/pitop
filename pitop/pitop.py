@@ -185,10 +185,11 @@ def main(testing=False):
         print('test successful')
         return True
     else:
-        # Start the TUI loop
-        loop = urwid.MainLoop(...)
+        # Start the TUI loop with the actual parameters
+        loop = urwid.MainLoop(filler, palette, unhandled_input=exit_on_q)
+        loop.set_alarm_in(2, refresh, user_data=None)
         loop.run()
-        return True 
+        return True
 
 
 def exit_on_q(key):
