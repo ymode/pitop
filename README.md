@@ -1,10 +1,7 @@
 # Pitop
 
-a highly configurable python based TUI for terminal
+A highly configurable python based TUI for terminal
 
-<img width="605" alt="pitop_5" src="https://github.com/ymode/pitop/assets/5312047/d0f58eec-85d4-4702-8862-deb2643b5628">
-<img width="611" alt="pitop" src="https://github.com/ymode/pitop/assets/5312047/d5091a9c-27f7-4541-8d5c-4729ab882e0a">
-
+<img width="1001" alt="pitop_7" src="https://github.com/ymode/pitop/assets/5312047/d725b6e6-7f69-4b40-9d17-caafaae55481">
 
 
-<img width="590" alt="pitop_4" src="https://github.com/ymode/pitop/assets/5312047/14384d61-c393-4549-80b9-d26a60216575">
