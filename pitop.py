@@ -124,7 +124,7 @@ def refresh(_loop, _data):
     process_list.body = urwid.SimpleFocusListWalker(new_process_list_items)
 
     # Set up the next callback for refreshing.
-    loop.set_alarm_in(2, refresh)
+    _loop.set_alarm_in(2, refresh)
 
 #plot cpu
 plt.plotsize(60, 15)  # Adjust the plot size to fit your layout
@@ -178,6 +178,17 @@ top_layout = urwid.Pile([
 filler = urwid.Filler(top_layout, valign='top')
 #bordered_filler = urwid.LineBox(filler)
 
-loop = urwid.MainLoop(filler, palette=palette)
-loop.set_alarm_in(2, refresh)
-loop.run()
+
+def main():
+    _loop = urwid.MainLoop(filler, palette=palette, unhandled_input=exit_on_q)
+    _loop.set_alarm_in(2, refresh)
+    _loop.run()
+
+
+def exit_on_q(key):
+    if key in ('q', 'Q'):
+        raise urwid.ExitMainLoop()
+
+
+if __name__ == "__main__":
+    main()
