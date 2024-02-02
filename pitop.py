@@ -4,30 +4,7 @@ import plotext as plt
 
 cpu_percentages = []
 
-def create_battery_progress_bar(bar_length=20):
-    battery = psutil.sensors_battery()
-    if battery:
-        percent = battery.percent
-        # Choose the color based on battery level
-        if percent > 65:
-            color = 'high_battery'
-        elif percent > 20:
-            color = 'medium_battery'
-        else:
-            color = 'low_battery'
-        
-        # Calculate the number of "filled" characters in the bar based on battery percentage
-        filled_length = int(round(bar_length * percent / 100.0))
-        bar = '|' * filled_length + ' ' * (bar_length - filled_length)
-        battery_bar_text = f"[{bar}] {percent}%"
-        
-        # If the power is plugged in, show a plugged in emoji or text
-        if battery.power_plugged:
-            battery_bar_text += " 🔌"
-        return (color, battery_bar_text)
-    else:
-        # No battery info available, perhaps this is a desktop or server
-        return ('normal', "Power:🔌")
+
 
 footer_text = urwid.Text("", align='left')
 
@@ -39,7 +16,8 @@ def create_footer():
         if battery.power_plugged:
             return "🔌 Plugged In"
         else:
-            return "🔋 Battery"
+            # Show the battery emoji with the current battery percentage
+            return f"🔋 {battery.percent}%"
     else:
         # No battery info available, perhaps this is a desktop or server
         return "⚡️ No Battery Info"
@@ -136,7 +114,7 @@ def refresh(_loop, _data):
     ram_usage_text.set_text(ram_usage_bar)
     
     # Update battery progress bar
-    battery_text.set_text(create_battery_progress_bar())
+    #battery_text.set_text(create_battery_progress_bar())
 
     # Refresh network info
     title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
