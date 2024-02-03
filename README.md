@@ -1,7 +1,7 @@
 # Pitop
 ![Build Status](https://github.com/ymode/pitop/actions/workflows/python-app.yml/badge.svg)
 
-A small python based TUI for terminal
+A small (and somewhat OS agnostic) python based TUI for terminal
 
 
 
@@ -11,6 +11,8 @@ A small python based TUI for terminal
 # Install
 
 ```git clone https://github.com/ymode/pitop.git```
+
+```cd pitop```
 
 ```pip install . ```
 
