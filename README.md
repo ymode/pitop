@@ -10,10 +10,13 @@ A small (and somewhat OS agnostic) python based TUI for terminal
 
 # Install
 
-```git clone https://github.com/ymode/pitop.git```
+```
+git clone https://github.com/ymode/pitop.git
 
-```cd pitop```
+cd pitop
 
-```pip install . ```
+pip install . 
 
-```pitop```
+pitop
+
+```
