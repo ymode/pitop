@@ -1,9 +1,37 @@
+#!/usr/bin/env python3
 import urwid
 import psutil
 import plotext as plt
+import os
+import signal
+import time
+
+
+
+class ProcessRow(urwid.WidgetWrap):
+    def __init__(self, proc_info):
+        self.proc_info = proc_info
+        self.pid = proc_info['pid']
+        name = proc_info['name'][:23]
+        cpu = f"{proc_info['cpu_percent']:.1f}"
+        mem = f"{proc_info['memory_percent']:.2f}"
+        user = proc_info['username'][:15]
+
+        # Create the columns for this row
+        cols = urwid.Columns([
+            ('fixed', 25, urwid.Text(name)),
+            ('fixed', 15, urwid.Text(user)),
+            ('fixed', 8, urwid.Text(str(self.pid))),
+            ('fixed', 8, urwid.Text(cpu)),
+            ('fixed', 8, urwid.Text(mem))
+        ])
+
+        # Use urwid.AttrMap to apply attributes for normal and focus states
+        super().__init__(urwid.AttrMap(cols, 'normal', focus_map='highlighted'))
+
 
 cpu_percentages = []
-
+last_process_list_refresh_time = time.time()
 
 
 footer_text = urwid.Text("", align='left')
@@ -23,9 +51,45 @@ def create_footer():
         return "⚡️ No Battery Info"
 
 def update_footer():
-    # Set the footer text to display power information
-    footer_text.set_text(create_footer())
-    
+    # footer text to display power information & hot keys
+    footer_text.set_text((
+        create_footer() + 
+        "   |   Q: Quit   |   K: Kill Process"
+    ))
+
+def handle_input(key):
+    if key in ('q', 'Q'):
+        raise urwid.ExitMainLoop()
+    elif key in ('k', 'K'):
+        kill_selected_process()
+    elif key == 'up':
+        # Scroll up
+        focus_position = process_list.focus_position
+        if focus_position > 0:
+            process_list.set_focus(focus_position - 1)
+    elif key == 'down':
+        # Scroll down
+        focus_position = process_list.focus_position
+        try:
+            process_list.set_focus(focus_position + 1)
+        except IndexError:
+            # We're at the end of the list, do nothing or handle it somehow
+            pass
+
+def kill_selected_process():
+    focus_widget, idx = process_list.get_focus()
+    if focus_widget:
+        pid = focus_widget.pid  # Your custom widget stores the PID now
+        try:
+            os.kill(pid, signal.SIGTERM)  # Send the terminate signal to the process
+            # You might need to refresh the process list to reflect the changes
+        except ProcessLookupError:
+            # Handle the case where the process is already gone
+            pass
+        except PermissionError:
+            # Handle the case where the user doesn't have permission to kill the process
+            pass
+
 def get_cpu_info():
     return ('normal', f"CPU Usage: {psutil.cpu_percent()}%")
 
@@ -43,39 +107,54 @@ title_columns = urwid.Columns([
 title_text = urwid.AttrMap(title_columns, 'header')
 
 
-def get_process_list(max_processes=6):
-    # Create the header row
-    header = urwid.AttrMap(urwid.Columns([
+header = urwid.AttrMap(urwid.Columns([
         ('fixed', 25, urwid.Text('Name')),
         ('fixed', 15, urwid.Text('User')),
         ('fixed', 8, urwid.Text('PID')),
         ('fixed', 8, urwid.Text('CPU%')),
         ('fixed', 8, urwid.Text('Mem%'))
     ]), 'header')
-    process_list = [header]
 
+def get_process_list(max_processes=6):
+    process_list = []
+
+    
+    
+    #process_list.append(header)
+
+    # Retrieve the process information and create a ProcessRow for each
     for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
         try:
-            name = proc.info['name'][:23]  # Limit the length of the name
-            pid = str(proc.info['pid'])
-            cpu = str(proc.info['cpu_percent'])
-            mem = "{:.2f}".format(proc.info['memory_percent'])
-            user = proc.info['username'][:15]
-            # Create a row for each process
-            process_row = urwid.Columns([
-                ('fixed', 25, urwid.Text(name)),
-                ('fixed', 15, urwid.Text(user)),
-                ('fixed', 8, urwid.Text(pid)),
-                ('fixed', 8, urwid.Text(cpu)),
-                ('fixed', 8, urwid.Text(mem))
-            ])
-            process_list.append(process_row)
+            proc_info = {
+                'pid': proc.info['pid'],
+                'name': proc.info['name'],
+                'cpu_percent': proc.info['cpu_percent'],
+                'memory_percent': proc.info['memory_percent'],
+                'username': proc.info['username']
+            }
+            process_list.append(ProcessRow(proc_info))
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
+    
+    sorted_process_widgets = sorted(
+        process_list,
+        key=lambda x: x.proc_info['cpu_percent'],  # Correctly access the CPU percent from the proc_info dictionary
+        reverse=True
+    )
+    limited_process_widgets = sorted_process_widgets[:max_processes]        
+    # Sort the process list based on CPU usage here if needed
+    # Your existing code for sorting would go here
 
-    # Sort and return the top processes based on CPU usage
-    process_list = [process_list[0]] + sorted(process_list[1:], key=lambda x: float(x.contents[2][0].get_text()[0]), reverse=True)[:max_processes]
-    return process_list
+    return limited_process_widgets
+
+process_items = urwid.SimpleFocusListWalker(get_process_list())
+process_list = urwid.ListBox(process_items)
+
+def refresh_process_list():
+    # Clear the existing process list and get a new one
+    del process_items[:]  # Clear the existing list
+    for proc_widget in get_process_list():
+        process_items.append(proc_widget)
 
 def create_cpu_progress_bar(cpu_usage, bar_length=20):
     # Calculate the number of "filled" characters in the bar based on CPU usage
@@ -93,7 +172,8 @@ def create_ram_progress_bar(ram_usage, bar_length=20):
 # ...
 
 
-def refresh(_loop, _data):
+def refresh(loop, _data):
+    global last_process_list_refresh_time
     # Update the CPU usage data
     cpu_usage = psutil.cpu_percent()
     cpu_percentages.append(cpu_usage)
@@ -118,13 +198,15 @@ def refresh(_loop, _data):
 
     # Refresh network info
     title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
-
-    # Refresh process list with a limited number of processes as Columns widgets
-    new_process_list_items = get_process_list(max_processes=6)
-    process_list.body = urwid.SimpleFocusListWalker(new_process_list_items)
-
+    if time.time() - last_process_list_refresh_time > 30:
+        # Refresh the process list
+        new_process_list_items = get_process_list(max_processes=6)
+        process_list.body = urwid.SimpleFocusListWalker(new_process_list_items)
+        last_process_list_refresh_time = time.time()
+ 
+    
     # Set up the next callback for refreshing.
-    _loop.set_alarm_in(2, refresh)
+    loop.set_alarm_in(2, refresh)
 
 #plot cpu
 plt.plotsize(60, 15)  # Adjust the plot size to fit your layout
@@ -137,6 +219,7 @@ palette = [
     ('low_battery', 'dark red', ''),
     ('normal', 'white', ''),
     ('header', 'white', 'light blue'),
+    ('highlighted', 'black', 'light magenta'),
 ]
 
 
@@ -146,8 +229,8 @@ battery_text = urwid.Text("")
 cpu_text = urwid.Text("")
 ram_text = urwid.Text("")
 #network_text = urwid.Text("")
-cpu_usage_text = urwid.Text("")
-ram_usage_text = urwid.Text("")
+cpu_usage_text = urwid.Text(create_cpu_progress_bar(0))
+ram_usage_text = urwid.Text(create_ram_progress_bar(0))
 #title_text = urwid.AttrMap(urwid.Text("pitop v0.1", align='center'), 'header')
 
 title_bar = urwid.AttrMap(urwid.Columns([
@@ -158,15 +241,20 @@ title_bar = urwid.AttrMap(urwid.Columns([
 # Create the process list ListBox here and pass it to the BoxAdapter
 process_items = urwid.SimpleFocusListWalker(get_process_list())
 process_list = urwid.ListBox(process_items)
-process_list_box = urwid.BoxAdapter(process_list, height=8)
+process_list_box = urwid.BoxAdapter(process_list, height=10)
+
+
+process_list_pile = urwid.Pile([
+    header,  # This will remain static
+    process_list_box,  # This will be scrollable
+])
 
 main_content_pile = urwid.Pile([
-    battery_text,
     cpu_usage_text,
     ram_usage_text,
     urwid.Divider(),
     urwid.Text('Running Processes:'),
-    process_list_box
+    process_list_pile  # Include the pile here
 ])
 
 top_layout = urwid.Pile([
@@ -186,7 +274,7 @@ def main(testing=False):
         return True
     else:
         # Start the TUI loop with the actual parameters
-        loop = urwid.MainLoop(filler, palette, unhandled_input=exit_on_q)
+        loop = urwid.MainLoop(filler, palette, unhandled_input=handle_input)
         loop.set_alarm_in(2, refresh, user_data=None)
         loop.run()
         return True
