@@ -115,7 +115,7 @@ header = urwid.AttrMap(urwid.Columns([
         ('fixed', 8, urwid.Text('Mem%'))
     ]), 'header')
 
-def get_process_list(max_processes=6):
+def get_process_list(max_processes=10):
     process_list = []
 
     
@@ -200,7 +200,7 @@ def refresh(loop, _data):
     title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
     if time.time() - last_process_list_refresh_time > 30:
         # Refresh the process list
-        new_process_list_items = get_process_list(max_processes=6)
+        new_process_list_items = get_process_list(max_processes=10)
         process_list.body = urwid.SimpleFocusListWalker(new_process_list_items)
         last_process_list_refresh_time = time.time()
  
