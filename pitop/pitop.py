@@ -73,21 +73,21 @@ def handle_input(key):
         try:
             process_list.set_focus(focus_position + 1)
         except IndexError:
-            # We're at the end of the list, do nothing or handle it somehow
+            #end of the list don't scroll
             pass
 
 def kill_selected_process():
     focus_widget, idx = process_list.get_focus()
     if focus_widget:
-        pid = focus_widget.pid  # Your custom widget stores the PID now
+        pid = focus_widget.pid  
         try:
             os.kill(pid, signal.SIGTERM)  # Send the terminate signal to the process
             # You might need to refresh the process list to reflect the changes
         except ProcessLookupError:
-            # Handle the case where the process is already gone
+            # I need to handle the case where the process is already gone
             pass
         except PermissionError:
-            # Handle the case where the user doesn't have permission to kill the process
+            # I need to handle the case where the user doesn't have permission to kill the process
             pass
 
 def get_cpu_info():
@@ -118,10 +118,6 @@ header = urwid.AttrMap(urwid.Columns([
 def get_process_list(max_processes=10):
     process_list = []
 
-    
-    
-    #process_list.append(header)
-
     # Retrieve the process information and create a ProcessRow for each
     for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
         try:
@@ -138,13 +134,10 @@ def get_process_list(max_processes=10):
     
     sorted_process_widgets = sorted(
         process_list,
-        key=lambda x: x.proc_info['cpu_percent'],  # Correctly access the CPU percent from the proc_info dictionary
+        key=lambda x: x.proc_info['cpu_percent'],  
         reverse=True
     )
-    limited_process_widgets = sorted_process_widgets[:max_processes]        
-    # Sort the process list based on CPU usage here if needed
-    # Your existing code for sorting would go here
-
+    limited_process_widgets = sorted_process_widgets[:max_processes]       
     return limited_process_widgets
 
 process_items = urwid.SimpleFocusListWalker(get_process_list())
@@ -168,9 +161,6 @@ def create_ram_progress_bar(ram_usage, bar_length=20):
     bar = '|' * filled_length + ' ' * (bar_length - filled_length)
     return f"[{bar}] {ram_usage}% RAM Util"
 
-# In your refresh function, continue to use the updated create_cpu_progress_bar
-# ...
-
 
 def refresh(loop, _data):
     global last_process_list_refresh_time
@@ -192,9 +182,6 @@ def refresh(loop, _data):
     ram = psutil.virtual_memory()
     ram_usage_bar = create_ram_progress_bar(ram.percent)
     ram_usage_text.set_text(ram_usage_bar)
-    
-    # Update battery progress bar
-    #battery_text.set_text(create_battery_progress_bar())
 
     # Refresh network info
     title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
@@ -209,10 +196,10 @@ def refresh(loop, _data):
     loop.set_alarm_in(2, refresh)
 
 #plot cpu
-plt.plotsize(60, 15)  # Adjust the plot size to fit your layout
-plt.axes_color('none')  # Set the axes color to 'none' for transparency
+plt.plotsize(60, 15)  
+plt.axes_color('none')  
 plt.ticks_color('white')
-# Define color palette
+#Color palette
 palette = [
     ('high_battery', 'dark green', ''),
     ('medium_battery', 'brown', ''),
@@ -228,17 +215,15 @@ footer_bar = urwid.AttrMap(footer_text, 'header')
 battery_text = urwid.Text("")
 cpu_text = urwid.Text("")
 ram_text = urwid.Text("")
-#network_text = urwid.Text("")
 cpu_usage_text = urwid.Text(create_cpu_progress_bar(0))
 ram_usage_text = urwid.Text(create_ram_progress_bar(0))
-#title_text = urwid.AttrMap(urwid.Text("pitop v0.1", align='center'), 'header')
 
 title_bar = urwid.AttrMap(urwid.Columns([
     ('weight', 1, urwid.Text('🐍Pitop v0.1', align='left')),
     ('weight', 2, urwid.Text(get_network_info(), align='right'))
 ]), 'header')
 
-# Create the process list ListBox here and pass it to the BoxAdapter
+#Process list ListBox here and pass it to the BoxAdapter
 process_items = urwid.SimpleFocusListWalker(get_process_list())
 process_list = urwid.ListBox(process_items)
 process_list_box = urwid.BoxAdapter(process_list, height=10)
@@ -254,7 +239,7 @@ main_content_pile = urwid.Pile([
     ram_usage_text,
     urwid.Divider(),
     urwid.Text('Running Processes:'),
-    process_list_pile  # Include the pile here
+    process_list_pile  
 ])
 
 top_layout = urwid.Pile([
@@ -264,7 +249,6 @@ top_layout = urwid.Pile([
 ])
 
 filler = urwid.Filler(top_layout, valign='top')
-#bordered_filler = urwid.LineBox(filler)
 
 
 def main(testing=False):
@@ -273,7 +257,6 @@ def main(testing=False):
         print('test successful')
         return True
     else:
-        # Start the TUI loop with the actual parameters
         loop = urwid.MainLoop(filler, palette, unhandled_input=handle_input)
         loop.set_alarm_in(2, refresh, user_data=None)
         loop.run()
