@@ -33,11 +33,40 @@ class ProcessRow(urwid.WidgetWrap):
         ])
         super().__init__(urwid.AttrMap(cols, 'normal', focus_map='highlighted'))
 
+# Global variables to store the last network IO counters
+last_bytes_sent = 0
+last_bytes_recv = 0
 
+
+
+
+def get_network_info():
+    global last_bytes_sent, last_bytes_recv
+    net_io = psutil.net_io_counters()
+    
+    # Calculate the difference in bytes sent/received since the last check
+    bytes_sent_diff = net_io.bytes_sent - last_bytes_sent
+    bytes_recv_diff = net_io.bytes_recv - last_bytes_recv
+    
+    # Update the last network IO counters
+    last_bytes_sent = net_io.bytes_sent
+    last_bytes_recv = net_io.bytes_recv
+    
+    # Convert to kilobytes for readability
+    kb_sent_diff = bytes_sent_diff / 1024
+    kb_recv_diff = bytes_recv_diff / 1024
+    
+    return ('Kbps', f"|↑{kb_sent_diff:.2f} KB|↓ {kb_recv_diff:.2f} KB")
+
+# Remember to call this function during your refresh cycle, as it updates global state.
 
 cpu_percentages = []
 last_process_list_refresh_time = time.time()
 
+title_columns = urwid.Columns([
+    ('weight', 2.5, urwid.AttrMap(urwid.Text('🐍 Pitop v0.1', align='left'), 'header')),
+   ('weight', 2, urwid.AttrMap(urwid.Text('Network Speed: ' + str(get_network_info()), align='right'), 'header'))
+])
 
 footer_text = urwid.Text("", align='left')
 
@@ -102,14 +131,6 @@ def get_ram_info():
     ram = psutil.virtual_memory()
     return ('normal', f"RAM Usage: {ram.percent}%")
 
-def get_network_info():
-    net_io = psutil.net_io_counters()
-    return ('normal', f"| ↑ {net_io.bytes_sent / (1024 * 1024):.2f}MB ↓ {net_io.bytes_recv / (1024 * 1024):.2f}MB")
-title_columns = urwid.Columns([
-    ('weight', 1, urwid.AttrMap(urwid.Text('🐍Pitop v0.1', align='left'), 'header')),
-    ('weight', 2, urwid.AttrMap(urwid.Text(get_network_info(), align='right'), 'header'))
-])
-title_text = urwid.AttrMap(title_columns, 'header')
 
 
 header = urwid.AttrMap(urwid.Columns([
@@ -180,16 +201,16 @@ def refresh(loop, _data):
     cpu_bar = create_cpu_progress_bar(cpu_usage)
     cpu_usage_text.set_text(cpu_bar)
 
-    #Update footer
+    #Update footer/titlebar
     update_footer()
-
+    refresh_title_bar()
     # Update RAM usage progress bar
     ram = psutil.virtual_memory()
     ram_usage_bar = create_ram_progress_bar(ram.percent)
     ram_usage_text.set_text(ram_usage_bar)
 
     # Refresh network info
-    title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
+    #title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
     if time.time() - last_process_list_refresh_time > 30:
         # Refresh the process list
         new_process_list_items = get_process_list(max_processes=10)
@@ -198,7 +219,7 @@ def refresh(loop, _data):
  
     
     # Set up the next callback for refreshing.
-    loop.set_alarm_in(2, refresh)
+    loop.set_alarm_in(1, refresh)
 
 #plot cpu
 plt.plotsize(60, 15)  
@@ -223,10 +244,16 @@ ram_text = urwid.Text("")
 cpu_usage_text = urwid.Text(create_cpu_progress_bar(0))
 ram_usage_text = urwid.Text(create_ram_progress_bar(0))
 
-title_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 1, urwid.Text('🐍Pitop v0.1', align='left')),
-    ('weight', 2, urwid.Text(get_network_info(), align='right'))
-]), 'header')
+def refresh_title_bar():
+    # Call get_network_info() to get the network speed information
+    network_info_attr, network_info_text = get_network_info()
+    
+    # Update the title bar with the new network speed information
+    title_columns.base_widget.contents[1] = (urwid.Text([('header', 'Network Speed: '), network_info_attr, network_info_text]), title_columns.base_widget.contents[1][1])
+
+
+title_bar = urwid.AttrMap(title_columns, 'header')
+
 
 #Process list ListBox here and pass it to the BoxAdapter
 process_items = urwid.SimpleFocusListWalker(get_process_list())
