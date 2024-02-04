@@ -31,3 +31,24 @@ pip install .
 pitop
 
 ```
+
+# Help
+
+In some cases (depending on the OS/distro) the system may not recognise the entry point in setup.py and will not allow the program to be run from the  ``` pitop ``` command.
+
+If this happens you can choose to force pitop to be an executable with the following 
+
+```
+cd pitop/pitop
+chmod +x pitop.py
+pitop
+
+```
+
+Alternatively if you just want to run pitop as a python script
+
+```
+cd pitop/pitop
+./pitop.py
+
+```
