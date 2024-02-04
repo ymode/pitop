@@ -56,7 +56,7 @@ def get_network_info():
     kb_sent_diff = bytes_sent_diff / 1024
     kb_recv_diff = bytes_recv_diff / 1024
     
-    return ('Kbps', f"|↑{kb_sent_diff:.2f} KB|↓ {kb_recv_diff:.2f} KB")
+    return ('Kbps', f"|↑{kb_sent_diff:.2f} KB|↓{kb_recv_diff:.2f} KB")
 
 # Remember to call this function during your refresh cycle, as it updates global state.
 
