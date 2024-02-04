@@ -13,11 +13,17 @@ class ProcessRow(urwid.WidgetWrap):
         self.proc_info = proc_info
         self.pid = proc_info['pid']
         name = proc_info['name'][:23]
-        cpu = f"{proc_info['cpu_percent']:.1f}"
+        
+        # Handle the case where cpu_percent is None
+        cpu_percent = proc_info.get('cpu_percent')
+        if cpu_percent is not None:
+            cpu = f"{cpu_percent:.1f}"
+        else:
+            cpu = "N/A"  # Or some other placeholder
+        
         mem = f"{proc_info['memory_percent']:.2f}"
         user = proc_info['username'][:15]
 
-        # Create the columns for this row
         cols = urwid.Columns([
             ('fixed', 25, urwid.Text(name)),
             ('fixed', 15, urwid.Text(user)),
@@ -25,9 +31,8 @@ class ProcessRow(urwid.WidgetWrap):
             ('fixed', 8, urwid.Text(cpu)),
             ('fixed', 8, urwid.Text(mem))
         ])
-
-        # Use urwid.AttrMap to apply attributes for normal and focus states
         super().__init__(urwid.AttrMap(cols, 'normal', focus_map='highlighted'))
+
 
 
 cpu_percentages = []
