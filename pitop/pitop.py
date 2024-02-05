@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import urwid
 import psutil
-import plotext as plt
 import os
 import signal
 import time
@@ -222,9 +221,9 @@ def refresh(loop, _data):
     loop.set_alarm_in(1, refresh)
 
 #plot cpu
-plt.plotsize(60, 15)  
-plt.axes_color('none')  
-plt.ticks_color('white')
+#plt.plotsize(60, 15)  
+#plt.axes_color('none')  
+#plt.ticks_color('white')
 #Color palette
 palette = [
     ('high_battery', 'dark green', ''),
