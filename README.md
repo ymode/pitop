@@ -55,7 +55,7 @@ cd pitop/pitop
 Also see: [known issues](https://github.com/ymode/pitop/issues)
 
 # Future
-Pitop remains in active development with a focus on v0.2a-pre-release as the nexzt target. This version adopts an entirely new codebase and focuses on visual upgrades as well as QoL improvements.
+Pitop remains in active development with a focus on v0.2a-pre-release as the next target. This version adopts an entirely new codebase and focuses on visual upgrades as well as QoL improvements.
 
 ![image](https://github.com/ymode/pitop/assets/5312047/e4550f6e-5f0e-40d0-b738-35e2dc04c971)
 _pitop-v0.2a-pre-release_
