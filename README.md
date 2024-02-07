@@ -31,7 +31,7 @@ pip install .
 pitop
 
 ```
-
+Or if you prefer [pre-release-source](https://github.com/ymode/pitop/releases/tag/v0.1.1-alpha)
 # Help
 
 In some cases (depending on the OS/distro) the system may not recognise the entry point in setup.py and will not allow the program to be run from the  ``` pitop ``` command.
