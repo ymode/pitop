@@ -135,7 +135,7 @@ def update_system_info(loop, data):
     ram_bar_markup = create_ram_progress_bar()
     ram_progress_bar_text.set_text(ram_bar_markup)
     uptime_text.set_text('Uptime:' + get_uptime())
-    network_info_text = 'Network' + ''.join(get_network_info())
+    network_info_text = 'Network' + ''.join(get_network_info()) + "    Q: Quit"
     footer_text.set_text(network_info_text)
     
     # Schedule next update in 1 second
@@ -198,11 +198,10 @@ column_headers = urwid.Columns([
 
 #Footer
 network_info_initial = 'Network' + ' '.join(get_network_info())
-footer_text = urwid.Text("₿" , align='right')
+footer_text = urwid.Text(network_info_initial + "    Q: Quit", align='right')
 
 footer_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 1, footer_text),
-    #('weight', 0.5, urwid.Text(' ' , align='right'))        
+    ('weight', 1, footer_text),      
 ], dividechars=0), 'footer')
 
 body_content = urwid.Pile([
@@ -231,12 +230,3 @@ loop.set_alarm_in(1, update_system_info)
 loop.set_alarm_in(30, refresh_process_list_callback)
 # Run the loop
 loop.run()
-
-
-
-'''
-footer_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 1, footer_text),
-    ('weight', 0.5, urwid.Text(' ' , align='right'))        
-], dividechars=0), 'footer')
-'''
