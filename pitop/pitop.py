@@ -128,18 +128,23 @@ def refresh_process_list():
     process_items.extend(new_process_list)
 
 
-def update_progress_bars(loop, data):
+def update_system_info(loop, data):
+    # Update CPU, RAM, uptime, and network info every second
     cpu_bar_markup = create_cpu_progress_bar()
-    cpu_progress_bar_text.set_text(cpu_bar_markup)  
+    cpu_progress_bar_text.set_text(cpu_bar_markup)
     ram_bar_markup = create_ram_progress_bar()
-    ram_progress_bar_text.set_text(ram_bar_markup)  
+    ram_progress_bar_text.set_text(ram_bar_markup)
     uptime_text.set_text('Uptime:' + get_uptime())
-    refresh_process_list()
     network_info_text = 'Network' + ''.join(get_network_info())
     footer_text.set_text(network_info_text)
-    loop.set_alarm_in(1, update_progress_bars)
+    
+    # Schedule next update in 1 second
+    loop.set_alarm_in(1, update_system_info)
 
-
+def refresh_process_list_callback(loop, data):
+    # Refresh process list every 30 seconds
+    refresh_process_list()
+    loop.set_alarm_in(30, refresh_process_list_callback)
 
 def create_cpu_progress_bar(bar_length=20):
     cpu_usage = psutil.cpu_percent(interval=None)
@@ -222,7 +227,8 @@ loop = urwid.MainLoop(frame, palette = [
     #('normal', 'white', 'black')  # You might need to add this for the percentage text
 ],
 unhandled_input=handle_input)
-loop.set_alarm_in(1, update_progress_bars)
+loop.set_alarm_in(1, update_system_info) 
+loop.set_alarm_in(30, refresh_process_list_callback)
 # Run the loop
 loop.run()
 
