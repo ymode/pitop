@@ -1,5 +1,6 @@
-# Pitop v0.2a pre-release
-![Build Status](https://github.com/ymode/pitop/actions/workflows/python-app.yml/badge.svg)
+# Pitop
+![Build Status](https://github.com/ymode/pitop/actions/workflows/python-app.yml/badge.svg) ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/ymode/pitop) ![GitHub issues](https://img.shields.io/github/issues/ymode/pitop) ![Codacy grade](https://img.shields.io/codacy/grade/bb24b7cc66374668848cc02d4a3a5396)
+
 
 A small (and somewhat OS agnostic) python based TUI for terminal.
 
