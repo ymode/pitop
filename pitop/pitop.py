@@ -1,11 +1,16 @@
-#!/usr/bin/env python3
 import urwid
 import psutil
-import os
-import signal
-import time
+import datetime
 
+global process_list
+global last_bytes_sent
+global last_bytes_recv 
+global horizontal_line
 
+last_bytes_sent = 0
+last_bytes_recv = 0
+horizontal_line = urwid.Divider(div_char='═')
+#------------------------------------------------------------------------#
 
 class ProcessRow(urwid.WidgetWrap):
     def __init__(self, proc_info):
@@ -18,26 +23,52 @@ class ProcessRow(urwid.WidgetWrap):
         if cpu_percent is not None:
             cpu = f"{cpu_percent:.1f}"
         else:
-            cpu = "N/A"  # Or some other placeholder
+            cpu = "N/A"  
         
         mem = f"{proc_info['memory_percent']:.2f}"
         user = proc_info['username'][:15]
 
-        cols = urwid.Columns([
+        self.cols = urwid.Columns([
             ('fixed', 25, urwid.Text(name)),
             ('fixed', 15, urwid.Text(user)),
             ('fixed', 8, urwid.Text(str(self.pid))),
             ('fixed', 8, urwid.Text(cpu)),
             ('fixed', 8, urwid.Text(mem))
         ])
-        super().__init__(urwid.AttrMap(cols, 'normal', focus_map='highlighted'))
+        super().__init__(urwid.AttrMap(self.cols, 'normal', focus_map='highlighted'))
 
-# Global variables to store the last network IO counters
-last_bytes_sent = 0
-last_bytes_recv = 0
+def handle_input(key):
+    if key in ('q', 'Q'):
+        raise urwid.ExitMainLoop()
+    elif key in ('k', 'K'):
+        pass#kill_selected_process()
+    elif key == 'up':
+        # Scroll up
+        focus_position = process_list.focus_position
+        if focus_position > 0:
+            process_list.set_focus(focus_position - 1)
+    elif key == 'down':
+        # Scroll down
+        focus_position = process_list.focus_position
+        try:
+            process_list.set_focus(focus_position + 1)
+        except IndexError:
+            #end of the list don't scroll
+            pass
 
+def get_uptime():
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+    now = datetime.datetime.now()
+    uptime_seconds = (now - boot_time).total_seconds()
+    hours, remainder = divmod(int(uptime_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:04d}:{minutes:02d}:{seconds:02d}"
 
-
+# Function to get hours since boot
+def get_hours_since_boot():
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+    now = datetime.datetime.now()
+    return int((now - boot_time).total_seconds() // 3600)
 
 def get_network_info():
     global last_bytes_sent, last_bytes_recv
@@ -55,90 +86,12 @@ def get_network_info():
     kb_sent_diff = bytes_sent_diff / 1024
     kb_recv_diff = bytes_recv_diff / 1024
     
-    return ('Kbps', f"|↑{kb_sent_diff:.2f} KB|↓{kb_recv_diff:.2f} KB")
+    return ('', f"│↑ {kb_sent_diff:.2f} kb│↓ {kb_recv_diff:.2f} kb│")
 
-# Remember to call this function during your refresh cycle, as it updates global state.
-
-cpu_percentages = []
-last_process_list_refresh_time = time.time()
-
-title_columns = urwid.Columns([
-    ('weight', 2.5, urwid.AttrMap(urwid.Text('🐍 Pitop v0.1', align='left'), 'header')),
-   ('weight', 2, urwid.AttrMap(urwid.Text('Network Speed: ' + str(get_network_info()), align='right'), 'header'))
-])
-
-footer_text = urwid.Text("", align='left')
-
-def create_footer():
-    # Check if the system is plugged in or if there's a battery
-    battery = psutil.sensors_battery()
-    if battery:
-        # If the power is plugged in, show a plugged-in emoji or text
-        if battery.power_plugged:
-            return "🔌 Plugged In"
-        else:
-            # Show the battery emoji with the current battery percentage
-            return f"🔋 {battery.percent}%"
-    else:
-        # No battery info available, perhaps this is a desktop or server
-        return "⚡️ No Battery Info"
-
-def update_footer():
-    # footer text to display power information & hot keys
-    footer_text.set_text((
-        create_footer() + 
-        "   |   Q: Quit   |   K: Kill Process"
-    ))
-
-def handle_input(key):
-    if key in ('q', 'Q'):
-        raise urwid.ExitMainLoop()
-    elif key in ('k', 'K'):
-        kill_selected_process()
-    elif key == 'up':
-        # Scroll up
-        focus_position = process_list.focus_position
-        if focus_position > 0:
-            process_list.set_focus(focus_position - 1)
-    elif key == 'down':
-        # Scroll down
-        focus_position = process_list.focus_position
-        try:
-            process_list.set_focus(focus_position + 1)
-        except IndexError:
-            #end of the list don't scroll
-            pass
-
-def kill_selected_process():
-    focus_widget, idx = process_list.get_focus()
-    if focus_widget:
-        pid = focus_widget.pid  
-        try:
-            os.kill(pid, signal.SIGTERM)  # Send the terminate signal to the process
-            # You might need to refresh the process list to reflect the changes
-        except ProcessLookupError:
-            # I need to handle the case where the process is already gone
-            pass
-        except PermissionError:
-            # I need to handle the case where the user doesn't have permission to kill the process
-            pass
-
-def get_cpu_info():
-    return ('normal', f"CPU Usage: {psutil.cpu_percent()}%")
-
-def get_ram_info():
-    ram = psutil.virtual_memory()
-    return ('normal', f"RAM Usage: {ram.percent}%")
-
-
-
-header = urwid.AttrMap(urwid.Columns([
-        ('fixed', 25, urwid.Text('Name')),
-        ('fixed', 15, urwid.Text('User')),
-        ('fixed', 8, urwid.Text('PID')),
-        ('fixed', 8, urwid.Text('CPU%')),
-        ('fixed', 8, urwid.Text('Mem%'))
-    ]), 'header')
+def get_usernames():
+    users = psutil.users()
+    usernames = [user.name for user in users]
+    return ', '.join(set(usernames))
 
 def get_process_list(max_processes=10):
     process_list = []
@@ -157,147 +110,146 @@ def get_process_list(max_processes=10):
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
     
+    # Now sorting by RAM utilization instead of CPU utilization
     sorted_process_widgets = sorted(
         process_list,
-        key=lambda x: x.proc_info['cpu_percent'],  
-        reverse=True
+        key=lambda x: x.proc_info['memory_percent'],  # Sort by RAM usage
+        reverse=True  # High to low
     )
     limited_process_widgets = sorted_process_widgets[:max_processes]       
     return limited_process_widgets
 
-process_items = urwid.SimpleFocusListWalker(get_process_list())
-process_list = urwid.ListBox(process_items)
+
 
 def refresh_process_list():
-    # Clear the existing process list and get a new one
-    del process_items[:]  # Clear the existing list
-    for proc_widget in get_process_list():
-        process_items.append(proc_widget)
+    global process_items  # If necessary, depending on your scope management
+    new_process_list = get_process_list(max_processes=10)
+    process_items.clear()
+    process_items.extend(new_process_list)
 
-def create_cpu_progress_bar(cpu_usage, bar_length=20):
-    # Calculate the number of "filled" characters in the bar based on CPU usage
-    filled_length = int(round(bar_length * cpu_usage / 100.0))
-    bar = '|' * filled_length + ' ' * (bar_length - filled_length)
-
-    return f"[{bar}] {cpu_usage}% CPU Util"
-
-def create_ram_progress_bar(ram_usage, bar_length=20):
-    filled_length = int(round(bar_length * ram_usage / 100.0))
-    bar = '|' * filled_length + ' ' * (bar_length - filled_length)
-    return f"[{bar}] {ram_usage}% RAM Util"
-
-
-def refresh(loop, _data):
-    global last_process_list_refresh_time
-    # Update the CPU usage data
-    cpu_usage = psutil.cpu_percent()
-    cpu_percentages.append(cpu_usage)
-    # Keep the list to a certain size
-    if len(cpu_percentages) > 60:
-        cpu_percentages.pop(0)
-    
-    # Update the CPU usage progress bar
-    cpu_bar = create_cpu_progress_bar(cpu_usage)
-    cpu_usage_text.set_text(cpu_bar)
-
-    #Update footer/titlebar
-    update_footer()
-    refresh_title_bar()
-    # Update RAM usage progress bar
-    ram = psutil.virtual_memory()
-    ram_usage_bar = create_ram_progress_bar(ram.percent)
-    ram_usage_text.set_text(ram_usage_bar)
-
-    # Refresh network info
-    #title_columns.base_widget.contents[1] = (urwid.Text(get_network_info(), align='right'), title_columns.base_widget.contents[1][1])
-    if time.time() - last_process_list_refresh_time > 30:
-        # Refresh the process list
-        new_process_list_items = get_process_list(max_processes=10)
-        process_list.body = urwid.SimpleFocusListWalker(new_process_list_items)
-        last_process_list_refresh_time = time.time()
- 
-    
-    # Set up the next callback for refreshing.
-    loop.set_alarm_in(1, refresh)
-
-#plot cpu
-#plt.plotsize(60, 15)  
-#plt.axes_color('none')  
-#plt.ticks_color('white')
-#Color palette
-palette = [
-    ('high_battery', 'dark green', ''),
-    ('medium_battery', 'brown', ''),
-    ('low_battery', 'dark red', ''),
-    ('normal', 'white', ''),
-    ('header', 'white', 'light blue'),
-    ('highlighted', 'black', 'light magenta'),
-]
-
-
-footer_bar = urwid.AttrMap(footer_text, 'header')
-# Text widgets for system info
-battery_text = urwid.Text("")
-cpu_text = urwid.Text("")
-ram_text = urwid.Text("")
-cpu_usage_text = urwid.Text(create_cpu_progress_bar(0))
-ram_usage_text = urwid.Text(create_ram_progress_bar(0))
-
-def refresh_title_bar():
-    # Call get_network_info() to get the network speed information
-    network_info_attr, network_info_text = get_network_info()
-    
-    # Update the title bar with the new network speed information
-    title_columns.base_widget.contents[1] = (urwid.Text([('header', 'Network Speed: '), network_info_attr, network_info_text]), title_columns.base_widget.contents[1][1])
-
-
-title_bar = urwid.AttrMap(title_columns, 'header')
-
-
-#Process list ListBox here and pass it to the BoxAdapter
-process_items = urwid.SimpleFocusListWalker(get_process_list())
-process_list = urwid.ListBox(process_items)
-process_list_box = urwid.BoxAdapter(process_list, height=10)
-
-
-process_list_pile = urwid.Pile([
-    header,  # This will remain static
-    process_list_box,  # This will be scrollable
-])
-
-main_content_pile = urwid.Pile([
-    cpu_usage_text,
-    ram_usage_text,
-    urwid.Divider(),
-    urwid.Text('Running Processes:'),
-    process_list_pile  
-])
-
-top_layout = urwid.Pile([
-    title_bar,
-    urwid.LineBox(main_content_pile),
-    footer_bar
-])
-
-filler = urwid.Filler(top_layout, valign='top')
-
-
-def main(testing=False):
-    
-    if testing:
-        print('test successful')
-        return True
+def get_battery_info():
+    battery = psutil.sensors_battery()
+    if battery:
+        # If we can get the battery information, return the percentage and a battery emoji
+        percent = f"{battery.percent}%"
+        if battery.power_plugged:
+            # If it's charging/plugged in, show a lightning bolt
+            return f"⚡ {percent}"
+        else:
+            # Otherwise, just show the battery percentage
+            return f"🔋 {percent}"
     else:
-        loop = urwid.MainLoop(filler, palette, unhandled_input=handle_input)
-        loop.set_alarm_in(2, refresh, user_data=None)
-        loop.run()
-        return True
+        # If battery information is not available, assume it's plugged in
+        return "⚡ Plugged In"
+
+def update_footer_text():
+    network_info = 'Network' + ''.join(get_network_info()) + " Q:Quit"
+    network_footer_text.set_text(network_info)
+    battery_info = get_battery_info()
+    battery_footer_text.set_text(battery_info)
+    footer_content = f"{battery_info} | {network_info}"
+    footer_text.set_text(footer_content)
+
+def update_system_info(loop, data):
+    # Update CPU, RAM, uptime, and network info every second
+    cpu_bar_markup = create_cpu_progress_bar()
+    cpu_progress_bar_text.set_text(cpu_bar_markup)
+    ram_bar_markup = create_ram_progress_bar()
+    ram_progress_bar_text.set_text(ram_bar_markup)
+    uptime_text.set_text('Uptime:' + get_uptime())
+    update_footer_text()
+    loop.set_alarm_in(1, update_system_info)
 
 
-def exit_on_q(key):
-    if key in ('q', 'Q'):
-        raise urwid.ExitMainLoop()
+def refresh_process_list_callback(loop, data):
+    # Refresh process list every 30 seconds
+    refresh_process_list()
+    loop.set_alarm_in(30, refresh_process_list_callback)
+
+def create_cpu_progress_bar(bar_length=20):
+    cpu_usage = psutil.cpu_percent(interval=None)
+    filled_length = int(round(bar_length * cpu_usage / 100.0))
+    filled_bar = [('progress_bar_filled', '█' * filled_length)]
+    unfilled_bar = [('progress_bar_empty', '░' * (bar_length - filled_length))]
+    return filled_bar + unfilled_bar + [('normal', f" {cpu_usage}% CPU Usage")]
+
+def create_ram_progress_bar(bar_length=20):
+    mem = psutil.virtual_memory()
+    ram_usage = mem.percent
+    filled_length = int(round(bar_length * ram_usage / 100.0))
+    filled_bar = [('progress_bar_filled', '█' * filled_length)]
+    unfilled_bar = [('progress_bar_empty', '░' * (bar_length - filled_length))]
+    return filled_bar + unfilled_bar + [('normal', f" {ram_usage}% RAM Usage")]
 
 
-if __name__ == "__main__":
-    main()
+
+
+
+# Text widget for the title
+title_text = urwid.Text("🐍" + get_usernames()+" @ Ƥitop.v0.2a", align='left')
+uptime_text = urwid.Text('Uptime:....' , align='left')
+cpu_text = urwid.Text(' │ CPUs:' + str(psutil.cpu_count()), align='left')
+
+#Title Bar Widget
+title_bar = urwid.AttrMap(urwid.Columns([
+    ('weight', 0.70, title_text),  # The title text gets twice the space
+    ('weight', 0.20, uptime_text), # Uptime text gets standard space
+    ('weight', 0.15, cpu_text)     # CPU text gets standard space
+], dividechars=1), 'header')
+
+#Body
+cpu_progress_bar_text = urwid.Text(create_cpu_progress_bar(), align='left')
+ram_progress_bar_text = urwid.Text(create_ram_progress_bar(), align='left')
+
+progress_bars = urwid.Columns([
+    ('weight', 1, cpu_progress_bar_text),
+    ('weight', 1, ram_progress_bar_text)
+])
+
+process_items = urwid.SimpleFocusListWalker(get_process_list(max_processes=10))
+process_list = urwid.ListBox(process_items)
+column_headers = urwid.Columns([
+    ('fixed', 25, urwid.Text('Name')),
+    ('fixed', 15, urwid.Text('User')),
+    ('fixed', 8, urwid.Text('PID')),
+    ('fixed', 8, urwid.Text('CPU%')),
+    ('fixed', 8, urwid.Text('MEM%'))
+])
+
+#Footer
+battery_footer_text = urwid.Text("", align='left')
+network_footer_text = urwid.Text("", align='center')
+network_info_initial = 'Network' + ' '.join(get_network_info())
+footer_text = urwid.Text(network_info_initial + " Q:Quit", align='right')
+
+footer_bar = urwid.AttrMap(urwid.Columns([
+    ('weight', 1, battery_footer_text),
+    ('weight', 1, network_footer_text),
+], dividechars=1), 'footer')
+
+body_content = urwid.Pile([
+    ('pack', progress_bars),
+    ('pack', urwid.AttrMap(column_headers, 'header')),
+    process_list,
+    ('pack', horizontal_line)
+    
+])
+
+frame = urwid.Frame(header=title_bar, body=body_content, footer=footer_bar)
+
+
+
+# Create the MainLoop with the main_layout as the top widget
+loop = urwid.MainLoop(frame, palette = [
+    ('header', 'white', 'light blue'),
+    ('footer', 'white', 'light blue'),
+    #('progress_bar_filled', 'black', 'light green'),  # Foreground, Background for filled part
+    #('progress_bar_empty', 'black', 'dark gray'),  # Foreground, Background for empty part
+    ('highlighted', 'black', 'light magenta'),
+    #('normal', 'white', 'black')  # You might need to add this for the percentage text
+],
+unhandled_input=handle_input)
+loop.set_alarm_in(1, update_system_info) 
+loop.set_alarm_in(30, refresh_process_list_callback)
+# Run the loop
+loop.run()
