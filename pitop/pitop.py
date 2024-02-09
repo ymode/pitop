@@ -127,6 +127,28 @@ def refresh_process_list():
     process_items.clear()
     process_items.extend(new_process_list)
 
+def get_battery_info():
+    battery = psutil.sensors_battery()
+    if battery:
+        # If we can get the battery information, return the percentage and a battery emoji
+        percent = f"{battery.percent}%"
+        if battery.power_plugged:
+            # If it's charging/plugged in, show a lightning bolt
+            return f"⚡ {percent}"
+        else:
+            # Otherwise, just show the battery percentage
+            return f"🔋 {percent}"
+    else:
+        # If battery information is not available, assume it's plugged in
+        return "⚡ Plugged In"
+
+def update_footer_text():
+    network_info = 'Network' + ''.join(get_network_info()) + " Q:Quit"
+    network_footer_text.set_text(network_info)
+    battery_info = get_battery_info()
+    battery_footer_text.set_text(battery_info)
+    footer_content = f"{battery_info} | {network_info}"
+    footer_text.set_text(footer_content)
 
 def update_system_info(loop, data):
     # Update CPU, RAM, uptime, and network info every second
@@ -135,11 +157,9 @@ def update_system_info(loop, data):
     ram_bar_markup = create_ram_progress_bar()
     ram_progress_bar_text.set_text(ram_bar_markup)
     uptime_text.set_text('Uptime:' + get_uptime())
-    network_info_text = 'Network' + ''.join(get_network_info()) + "    Q: Quit"
-    footer_text.set_text(network_info_text)
-    
-    # Schedule next update in 1 second
+    update_footer_text()
     loop.set_alarm_in(1, update_system_info)
+
 
 def refresh_process_list_callback(loop, data):
     # Refresh process list every 30 seconds
@@ -166,7 +186,7 @@ def create_ram_progress_bar(bar_length=20):
 
 
 # Text widget for the title
-title_text = urwid.Text("🐍" + get_usernames()+"@pitop.v0.2a", align='left')
+title_text = urwid.Text("🐍" + get_usernames()+" @ Ƥitop.v0.2a", align='left')
 uptime_text = urwid.Text('Uptime:....' , align='left')
 cpu_text = urwid.Text(' │ CPUs:' + str(psutil.cpu_count()), align='left')
 
@@ -197,12 +217,15 @@ column_headers = urwid.Columns([
 ])
 
 #Footer
+battery_footer_text = urwid.Text("", align='left')
+network_footer_text = urwid.Text("", align='center')
 network_info_initial = 'Network' + ' '.join(get_network_info())
-footer_text = urwid.Text(network_info_initial + "    Q: Quit", align='right')
+footer_text = urwid.Text(network_info_initial + " Q:Quit", align='right')
 
 footer_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 1, footer_text),      
-], dividechars=0), 'footer')
+    ('weight', 1, battery_footer_text),
+    ('weight', 1, network_footer_text),
+], dividechars=1), 'footer')
 
 body_content = urwid.Pile([
     ('pack', progress_bars),
