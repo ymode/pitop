@@ -237,19 +237,26 @@ body_content = urwid.Pile([
 
 frame = urwid.Frame(header=title_bar, body=body_content, footer=footer_bar)
 
+def main(testing=False):
 
+    
+    loop = urwid.MainLoop(frame, palette = [
+        ('header', 'white', 'light blue'),
+        ('footer', 'white', 'light blue'),
+       
+        ('highlighted', 'black', 'light magenta'),
+       
+    ],
+    unhandled_input=handle_input)
 
-# Create the MainLoop with the main_layout as the top widget
-loop = urwid.MainLoop(frame, palette = [
-    ('header', 'white', 'light blue'),
-    ('footer', 'white', 'light blue'),
-    #('progress_bar_filled', 'black', 'light green'),  # Foreground, Background for filled part
-    #('progress_bar_empty', 'black', 'dark gray'),  # Foreground, Background for empty part
-    ('highlighted', 'black', 'light magenta'),
-    #('normal', 'white', 'black')  # You might need to add this for the percentage text
-],
-unhandled_input=handle_input)
-loop.set_alarm_in(1, update_system_info) 
-loop.set_alarm_in(30, refresh_process_list_callback)
-# Run the loop
-loop.run()
+    if testing:
+        #success
+        return True
+    else:
+        loop.set_alarm_in(1, update_system_info) 
+        loop.set_alarm_in(30, refresh_process_list_callback)
+        
+        loop.run()
+
+if __name__ == "__main__":
+    main()
