@@ -1,6 +1,7 @@
 import urwid
 import psutil
 import datetime
+import os
 
 global process_list
 global last_bytes_sent
@@ -182,9 +183,6 @@ def create_ram_progress_bar(bar_length=20):
     return filled_bar + unfilled_bar + [('normal', f" {ram_usage}% RAM Usage")]
 
 
-
-
-
 # Text widget for the title
 title_text = urwid.Text("🐍" + get_usernames()+" @ Ƥitop.v0.2a", align='left')
 uptime_text = urwid.Text('Uptime:....' , align='left')
@@ -192,9 +190,9 @@ cpu_text = urwid.Text(' │ CPUs:' + str(psutil.cpu_count()), align='left')
 
 #Title Bar Widget
 title_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 0.70, title_text),  # The title text gets twice the space
-    ('weight', 0.20, uptime_text), # Uptime text gets standard space
-    ('weight', 0.15, cpu_text)     # CPU text gets standard space
+    ('weight', 0.70, title_text),  
+    ('weight', 0.20, uptime_text), 
+    ('weight', 0.15, cpu_text)     
 ], dividechars=1), 'header')
 
 #Body
@@ -227,13 +225,16 @@ footer_bar = urwid.AttrMap(urwid.Columns([
     ('weight', 1, network_footer_text),
 ], dividechars=1), 'footer')
 
+
 body_content = urwid.Pile([
     ('pack', progress_bars),
     ('pack', urwid.AttrMap(column_headers, 'header')),
-    process_list,
-    ('pack', horizontal_line)
-    
+    process_list,  # This will be as tall as its contents
+    ('pack', horizontal_line),
+    #command_history_list,
+    ('weight', 1, urwid.Filler(urwid.Divider(), 'top')),  
 ])
+
 
 frame = urwid.Frame(header=title_bar, body=body_content, footer=footer_bar)
 
@@ -255,7 +256,7 @@ def main(testing=False):
     else:
         loop.set_alarm_in(1, update_system_info) 
         loop.set_alarm_in(30, refresh_process_list_callback)
-        
+
         loop.run()
 
 if __name__ == "__main__":
