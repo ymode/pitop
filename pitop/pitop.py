@@ -239,7 +239,7 @@ def main(testing=False):
         ('header', 'black', 'light blue'),
         ('footer', 'black', 'light blue'),
        
-        ('highlighted', 'black', 'light magenta'),
+        ('highlighted', 'black', 'yellow'),
        
     ],
     unhandled_input=handle_input)
