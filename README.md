@@ -34,7 +34,7 @@ pip install .
 pitop
 
 ```
-Or if you prefer [pre-release-source](https://github.com/ymode/pitop/releases/tag/v0.1.1-alpha)
+Or if you prefer [pre-release-source](https://github.com/ymode/pitop/releases/tag/v0.3-alpha)
 # Help
 
 Pitop targets Python 3.11.x however it supports 3.10.x and higher.
