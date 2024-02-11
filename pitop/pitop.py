@@ -10,7 +10,7 @@ global horizontal_line
 
 last_bytes_sent = 0
 last_bytes_recv = 0
-horizontal_line = urwid.Divider(div_char='═')
+horizontal_line = urwid.Divider(div_char='⏤')
 #------------------------------------------------------------------------#
 
 class ProcessRow(urwid.WidgetWrap):
@@ -96,7 +96,6 @@ def get_usernames():
 
 def get_process_list(max_processes=10):
     process_list = []
-
     # Retrieve the process information and create a ProcessRow for each
     for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
         try:
@@ -131,16 +130,12 @@ def refresh_process_list():
 def get_battery_info():
     battery = psutil.sensors_battery()
     if battery:
-        # If we can get the battery information, return the percentage and a battery emoji
         percent = f"{battery.percent}%"
         if battery.power_plugged:
-            # If it's charging/plugged in, show a lightning bolt
             return f"⚡ {percent}"
         else:
-            # Otherwise, just show the battery percentage
             return f"🔋 {percent}"
     else:
-        # If battery information is not available, assume it's plugged in
         return "⚡ Plugged In"
 
 def update_footer_text():
@@ -184,7 +179,7 @@ def create_ram_progress_bar(bar_length=20):
 
 
 # Text widget for the title
-title_text = urwid.Text("🐍" + get_usernames()+" @ Ƥitop.v0.2a", align='left')
+title_text = urwid.Text("🐍 " + get_usernames()+" @ Ƥitop.v0.2a", align='left')
 uptime_text = urwid.Text('Uptime:....' , align='left')
 cpu_text = urwid.Text(' │ CPUs:' + str(psutil.cpu_count()), align='left')
 
@@ -231,7 +226,6 @@ body_content = urwid.Pile([
     ('pack', urwid.AttrMap(column_headers, 'header')),
     process_list,  # This will be as tall as its contents
     ('pack', horizontal_line),
-    #command_history_list,
     ('weight', 1, urwid.Filler(urwid.Divider(), 'top')),  
 ])
 
@@ -242,8 +236,8 @@ def main(testing=False):
 
     
     loop = urwid.MainLoop(frame, palette = [
-        ('header', 'white', 'light blue'),
-        ('footer', 'white', 'light blue'),
+        ('header', 'black', 'light blue'),
+        ('footer', 'black', 'light blue'),
        
         ('highlighted', 'black', 'light magenta'),
        
