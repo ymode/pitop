@@ -2,7 +2,11 @@ import urwid
 import psutil
 import datetime
 import os
-import tomllib
+import sys
+if sys.version_info >= (3,11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 global process_list
 global last_bytes_sent
