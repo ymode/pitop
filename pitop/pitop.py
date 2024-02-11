@@ -252,13 +252,12 @@ frame = urwid.Frame(header=title_bar, body=body_content, footer=footer_bar)
 
 def main(testing=False):
 
-    palette = load_palette_config()
-    loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
-
     if testing:
         #success
         return True
     else:
+        palette = load_palette_config()
+        loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
         loop.set_alarm_in(1, update_system_info) 
         loop.set_alarm_in(30, refresh_process_list_callback)
 
