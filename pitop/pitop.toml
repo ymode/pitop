@@ -1,0 +1,14 @@
+# Palette Configuration for Pitop
+
+[palette]
+# Header color configuration
+header_fg = "black"
+header_bg = "light blue"
+
+# Footer color configuration
+footer_fg = "black"
+footer_bg = "light blue"
+
+# Highlighted item color configuration
+highlighted_fg = "black"
+highlighted_bg = "yellow"

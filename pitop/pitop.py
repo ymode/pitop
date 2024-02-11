@@ -2,6 +2,7 @@ import urwid
 import psutil
 import datetime
 import os
+import tomllib
 
 global process_list
 global last_bytes_sent
@@ -37,6 +38,19 @@ class ProcessRow(urwid.WidgetWrap):
             ('fixed', 8, urwid.Text(mem))
         ])
         super().__init__(urwid.AttrMap(self.cols, 'normal', focus_map='highlighted'))
+
+
+def load_palette_config(path="pitop.toml"):
+    with open(path, 'rb') as f:  
+        config = tomllib.load(f)
+    
+    palette = [
+        ('header', config['palette']['header_fg'], config['palette']['header_bg']),
+        ('footer', config['palette']['footer_fg'], config['palette']['footer_bg']),
+        ('highlighted', config['palette']['highlighted_fg'], config['palette']['highlighted_bg']),
+    ]
+    
+    return palette
 
 def handle_input(key):
     if key in ('q', 'Q'):
@@ -234,15 +248,8 @@ frame = urwid.Frame(header=title_bar, body=body_content, footer=footer_bar)
 
 def main(testing=False):
 
-    
-    loop = urwid.MainLoop(frame, palette = [
-        ('header', 'black', 'light blue'),
-        ('footer', 'black', 'light blue'),
-       
-        ('highlighted', 'black', 'yellow'),
-       
-    ],
-    unhandled_input=handle_input)
+    palette = load_palette_config()
+    loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
 
     if testing:
         #success
