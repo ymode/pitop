@@ -197,7 +197,7 @@ def create_ram_progress_bar(bar_length=20):
 
 
 # Text widget for the title
-title_text = urwid.Text("🐍 " + get_usernames()+" @ Ƥitop.v0.2a", align='left')
+title_text = urwid.Text("🐍 " + get_usernames()+" @ Ƥitop.v0.3a", align='left')
 uptime_text = urwid.Text('Uptime:....' , align='left')
 cpu_text = urwid.Text(' │ CPUs:' + str(psutil.cpu_count()), align='left')
 
