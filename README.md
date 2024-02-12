@@ -36,6 +36,7 @@ pitop
 ```
 Or if you prefer [pre-release-source](https://github.com/ymode/pitop/releases/tag/v0.3-alpha)
 # Help
+Pitop [Wiki](https://github.com/ymode/pitop/wiki)
 
 Pitop targets Python 3.11.x however it supports 3.10.x and higher.
 
