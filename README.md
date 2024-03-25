@@ -29,7 +29,9 @@ git clone https://github.com/ymode/pitop.git
 
 cd pitop
 
-pip install . 
+pip install .
+
+cd pittop 
 
 pitop
 
