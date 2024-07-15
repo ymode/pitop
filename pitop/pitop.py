@@ -13,6 +13,7 @@ else:
 last_bytes_sent = 0
 last_bytes_recv = 0
 horizontal_line = urwid.Divider(div_char='⏤')
+disk_info_text = urwid.Text("") 
 
 class ProcessRow(urwid.WidgetWrap):
     """
@@ -98,6 +99,24 @@ def get_process_list(max_processes=10):
             continue
     return process_list
 
+def get_disk_info():
+    """
+    Retrieve information about mounted disks.
+
+    :return: A list of strings with disk information.
+    """
+    disk_info = []
+    for partition in psutil.disk_partitions(all=False):
+        if os.name == 'nt':
+            if 'cdrom' in partition.opts or partition.fstype == '':
+                # skip cd-rom drives with no disk in it on Windows
+                continue
+        usage = psutil.disk_usage(partition.mountpoint)
+        disk_info.append(f"{partition.device} ({partition.mountpoint}): "
+                         f"{usage.used / (1024 * 1024 * 1024):.1f}GB / "
+                         f"{usage.total / (1024 * 1024 * 1024):.1f}GB "
+                         f"({usage.percent}%)")
+    return disk_info
 
 def create_cpu_progress_bar():
     """
@@ -119,12 +138,30 @@ def create_ram_progress_bar():
     ram_percent = ram.percent
     return f"RAM Usage: [{'#' * int(ram_percent / 10)}{'.' * (10 - int(ram_percent / 10))}] {ram_percent}%"
 
+def get_uptime():
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+    now = datetime.datetime.now()
+    uptime_seconds = (now - boot_time).total_seconds()
+    hours, remainder = divmod(int(uptime_seconds), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:04d}:{minutes:02d}:{seconds:02d}"
+
+# Function to get hours since boot
+def get_hours_since_boot():
+    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+    now = datetime.datetime.now()
+    return int((now - boot_time).total_seconds() // 3600)
+
+def get_usernames():
+    users = psutil.users()
+    usernames = [user.name for user in users]
+    return ', '.join(set(usernames))
 
 def get_network_info():
     """
     Retrieve current network information.
 
-    :return: A tuple with network info strings.
+    :return: A string with network info.
     """
     global last_bytes_sent, last_bytes_recv
     net_io = psutil.net_io_counters()
@@ -132,8 +169,18 @@ def get_network_info():
     bytes_recv = net_io.bytes_recv - last_bytes_recv
     last_bytes_sent = net_io.bytes_sent
     last_bytes_recv = net_io.bytes_recv
-    return (f"Sent: {bytes_sent / 1024:.2f} KB", f"Recv: {bytes_recv / 1024:.2f} KB")
+    return f"⬆️ {bytes_sent / 1024:.2f} KB, ⬇️ {bytes_recv / 1024:.2f} KB"
 
+def get_battery_info():
+    battery = psutil.sensors_battery()
+    if battery:
+        percent = f"{battery.percent}%"
+        if battery.power_plugged:
+            return f"⚡ {percent}"
+        else:
+            return f"🔋 {percent}"
+    else:
+        return "⚡ Plugged In"
 
 def update_system_info(loop, user_data):
     """
@@ -144,6 +191,14 @@ def update_system_info(loop, user_data):
     """
     cpu_progress_bar_text.set_text(create_cpu_progress_bar())
     ram_progress_bar_text.set_text(create_ram_progress_bar())
+    disk_info = get_disk_info()
+    disk_info_text.set_text("\n".join(["Disk Usage:"] + disk_info))
+    
+    # Update footer information
+    battery_footer_text.set_text(get_battery_info())
+    network_footer_text.set_text(get_network_info())
+    footer_text.set_text("Q:Quit")
+    
     loop.set_alarm_in(1, update_system_info)
 
 
@@ -189,21 +244,23 @@ column_headers = urwid.Columns([
 ])
 
 # Footer
+# Footer
 battery_footer_text = urwid.Text("", align='left')
 network_footer_text = urwid.Text("", align='center')
-network_info_initial = 'Network' + ' '.join(get_network_info())
-footer_text = urwid.Text(network_info_initial + " Q:Quit", align='right')
+footer_text = urwid.Text("Q:Quit", align='right')
 
 footer_bar = urwid.AttrMap(urwid.Columns([
     ('weight', 1, battery_footer_text),
     ('weight', 1, network_footer_text),
+    ('weight', 1, footer_text)
 ], dividechars=1), 'footer')
 
 body_content = urwid.Pile([
     ('pack', progress_bars),
     ('pack', urwid.AttrMap(column_headers, 'header')),
-    process_list,  # This will be as tall as its contents
+    process_list,
     ('pack', horizontal_line),
+    ('pack', disk_info_text), 
     ('weight', 1, urwid.Filler(urwid.Divider(), 'top')),
 ])
 
