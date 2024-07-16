@@ -3,6 +3,8 @@ import psutil
 import datetime
 import os
 import sys
+import logging
+import getpass
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -15,20 +17,14 @@ last_bytes_recv = 0
 horizontal_line = urwid.Divider(div_char='⏤')
 disk_info_text = urwid.Text("") 
 
-class ProcessRow(urwid.WidgetWrap):
-    """
-    A class to represent a row in the process list.
-    """
+logging.basicConfig(filename='pitop_debug.log', level=logging.DEBUG)
 
+class ProcessRow(urwid.WidgetWrap):
     def __init__(self, proc_info):
         self.proc_info = proc_info
         self.pid = proc_info['pid']
         name = proc_info['name'][:23]
-
-        # Handle the case where cpu_percent is None
-        cpu_percent = proc_info.get('cpu_percent')
-        cpu = f"{cpu_percent:.1f}" if cpu_percent is not None else "N/A"
-        
+        cpu = f"{proc_info['cpu_percent']:.1f}" if proc_info['cpu_percent'] is not None else "N/A"
         mem = f"{proc_info['memory_percent']:.2f}"
         user = proc_info['username'][:15]
 
@@ -82,23 +78,40 @@ def handle_input(key):
 
 
 def get_process_list(max_processes=10):
-    """
-    Retrieve a list of processes to display.
-
-    :param max_processes: Maximum number of processes to display.
-    :return: A list of ProcessRow widgets.
-    """
     process_list = []
-    for proc in psutil.process_iter(attrs=['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
+    active_users = get_usernames().split(", ")
+    logging.debug(f"Active users: {active_users}")
+    
+    include_all = len(active_users) == 0 or (len(active_users) == 1 and active_users[0] == '')
+    
+    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
         try:
-            process_info = proc.info
-            process_list.append(ProcessRow(process_info))
-            if len(process_list) >= max_processes:
-                break
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
-    return process_list
-
+            proc_info = {
+                'pid': proc.info['pid'],
+                'name': proc.info['name'],
+                'cpu_percent': proc.info['cpu_percent'],
+                'memory_percent': proc.info['memory_percent'],
+                'username': proc.info['username']
+            }
+            if include_all or proc_info['username'] in active_users:
+                process_list.append(ProcessRow(proc_info))
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
+            logging.debug(f"Error processing a process: {str(e)}")
+        except Exception as e:
+            logging.debug(f"Unexpected error processing a process: {str(e)}")
+    
+    logging.debug(f"Number of processes before sorting: {len(process_list)}")
+    
+    sorted_process_widgets = sorted(
+        process_list,
+        key=lambda x: x.proc_info['memory_percent'] if x.proc_info['memory_percent'] is not None else 0,
+        reverse=True
+    )
+    limited_process_widgets = sorted_process_widgets[:max_processes]
+    
+    logging.debug(f"Number of processes after limiting: {len(limited_process_widgets)}")
+    
+    return limited_process_widgets
 def get_disk_info():
     """
     Retrieve information about mounted disks.
@@ -155,7 +168,13 @@ def get_hours_since_boot():
 def get_usernames():
     users = psutil.users()
     usernames = [user.name for user in users]
-    return ', '.join(set(usernames))
+    if not usernames:
+        # If no users are returned, add the current user
+        current_user = getpass.getuser()
+        usernames.append(current_user)
+    unique_usernames = list(set(usernames))
+    logging.debug(f"Unique usernames: {unique_usernames}")
+    return ', '.join(unique_usernames)
 
 def get_network_info():
     """
@@ -203,13 +222,15 @@ def update_system_info(loop, user_data):
 
 
 def refresh_process_list_callback(loop, user_data):
-    """
-    Refresh the process list.
-
-    :param loop: The main loop object.
-    :param user_data: Additional user data.
-    """
-    process_items[:] = get_process_list(max_processes=10)
+    try:
+        new_process_list = get_process_list(max_processes=10)
+        if new_process_list:
+            process_items[:] = new_process_list
+            logging.debug(f"Process list updated with {len(new_process_list)} items")
+        else:
+            logging.debug("get_process_list returned an empty list")
+    except Exception as e:
+        logging.debug(f"Error in refresh_process_list_callback: {str(e)}")
     loop.set_alarm_in(30, refresh_process_list_callback)
 
 
@@ -278,6 +299,11 @@ def main(testing=False):
     else:
         palette = load_palette_config()
         loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
+        
+        # Initialize the process list
+        initial_process_list = get_process_list(max_processes=10)
+        process_items[:] = initial_process_list
+        
         loop.set_alarm_in(1, update_system_info)
         loop.set_alarm_in(30, refresh_process_list_callback)
 
