@@ -87,7 +87,7 @@ def index():
     return render_template_string(HTML_TEMPLATE, **get_system_info())
 
 def run_server():
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
 
 if __name__ == '__main__':
     run_server()
