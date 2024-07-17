@@ -134,25 +134,19 @@ def get_disk_info():
                          f"({usage.percent}%)")
     return disk_info
 
+def create_progress_bar(percent, width=20):
+    filled = int(width * percent / 100)
+    empty = width - filled
+    bar = '█' * filled + '░' * empty
+    return f"[{bar}] {percent:.1f}%"
+
 def create_cpu_progress_bar():
-    """
-    Create a progress bar for CPU usage.
-
-    :return: A string representation of the CPU progress bar.
-    """
     cpu_percent = psutil.cpu_percent()
-    return f"CPU Usage: [{'#' * int(cpu_percent / 10)}{'.' * (10 - int(cpu_percent / 10))}] {cpu_percent}%"
-
+    return f"CPU Usage: {create_progress_bar(cpu_percent)}"
 
 def create_ram_progress_bar():
-    """
-    Create a progress bar for RAM usage.
-
-    :return: A string representation of the RAM progress bar.
-    """
     ram = psutil.virtual_memory()
-    ram_percent = ram.percent
-    return f"RAM Usage: [{'#' * int(ram_percent / 10)}{'.' * (10 - int(ram_percent / 10))}] {ram_percent}%"
+    return f"RAM Usage: {create_progress_bar(ram.percent)}"
 
 def get_uptime():
     boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
@@ -281,7 +275,7 @@ title_bar = urwid.AttrMap(urwid.Columns([
 
 # Body
 cpu_progress_bar_text = urwid.Text(create_cpu_progress_bar(), align='left')
-ram_progress_bar_text = urwid.Text(create_ram_progress_bar(), align='left')
+ram_progress_bar_text = urwid.Text(create_ram_progress_bar(), align='right')
 
 progress_bars = urwid.Columns([
     ('weight', 1, cpu_progress_bar_text),
