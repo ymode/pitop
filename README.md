@@ -10,6 +10,7 @@ A small (and _somewhat OS agnostic_) user configurable python based TUI for term
 
 # Features
 +  ✅ Compatible with tmux and other terminal multiplexers, will dynamically resize to fit most tmux applications
++  🛜 Webserver mode, start Pitop with --web flag and pitop will serve on http://localhost:5000/
 +  💀 Highlight and kill unwanted processes
 +  📈 Monitor CPU/RAM/Battery/Network
 +  🐍 Written in python to encourage people to hack/modify it to suit their own needs
