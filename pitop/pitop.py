@@ -16,6 +16,7 @@ last_bytes_sent = 0
 last_bytes_recv = 0
 horizontal_line = urwid.Divider(div_char='⏤')
 disk_info_text = urwid.Text("") 
+need_refresh = False
 
 logging.basicConfig(filename='pitop_debug.log', level=logging.DEBUG)
 
@@ -36,6 +37,12 @@ class ProcessRow(urwid.WidgetWrap):
             ('fixed', 8, urwid.Text(mem))
         ])
         super().__init__(urwid.AttrMap(self.cols, 'normal', focus_map='highlighted'))
+
+    def selectable(self):
+        return True
+
+    def keypress(self, size, key):
+        return key
 
 
 def load_palette_config(path="pitop.toml"):
@@ -61,20 +68,16 @@ def load_palette_config(path="pitop.toml"):
     return palette
 
 
-def handle_input(key):
-    """
-    Handle keyboard input for the TUI.
 
-    :param key: The key pressed.
-    """
+def handle_input(key):
     if key in ('q', 'Q'):
         raise urwid.ExitMainLoop()
     elif key in ('k', 'K'):
-        pass  # kill_selected_process()
+        kill_selected_process()
     elif key == 'up':
-        pass  # Scroll up
+        process_list.keypress((0,), 'up')
     elif key == 'down':
-        pass  # Scroll down
+        process_list.keypress((0,), 'down')
 
 
 def get_process_list(max_processes=10):
@@ -201,6 +204,22 @@ def get_battery_info():
     else:
         return "⚡ Plugged In"
 
+def kill_selected_process():
+    focus = process_list.focus
+    if focus is not None:
+        pid = focus.pid
+        try:
+            process = psutil.Process(pid)
+            process.terminate()
+            logging.debug(f"Process with PID {pid} terminated.")
+        except psutil.NoSuchProcess:
+            logging.debug(f"No process found with PID {pid}")
+        except psutil.AccessDenied:
+            logging.debug(f"Access denied when trying to terminate process with PID {pid}")
+        # Instead of calling refresh_process_list_callback directly, we'll set a flag
+        global need_refresh
+        need_refresh = True
+
 def update_system_info(loop, user_data):
     """
     Update system information and refresh the UI.
@@ -222,13 +241,28 @@ def update_system_info(loop, user_data):
 
 
 def refresh_process_list_callback(loop, user_data):
+    global need_refresh
     try:
-        new_process_list = get_process_list(max_processes=10)
-        if new_process_list:
-            process_items[:] = new_process_list
-            logging.debug(f"Process list updated with {len(new_process_list)} items")
+        if need_refresh:
+            new_process_list = get_process_list(max_processes=10)
+            if new_process_list:
+                del process_items[:]
+                process_items.extend(new_process_list)
+                logging.debug(f"Process list updated with {len(new_process_list)} items")
+            else:
+                logging.debug("get_process_list returned an empty list")
+            loop.draw_screen()  # Force a redraw of the screen
+            need_refresh = False
         else:
-            logging.debug("get_process_list returned an empty list")
+            # Perform regular update
+            new_process_list = get_process_list(max_processes=10)
+            if new_process_list:
+                del process_items[:]
+                process_items.extend(new_process_list)
+                logging.debug(f"Process list updated with {len(new_process_list)} items")
+            else:
+                logging.debug("get_process_list returned an empty list")
+            loop.draw_screen()  # Force a redraw of the screen
     except Exception as e:
         logging.debug(f"Error in refresh_process_list_callback: {str(e)}")
     loop.set_alarm_in(30, refresh_process_list_callback)
@@ -268,7 +302,7 @@ column_headers = urwid.Columns([
 # Footer
 battery_footer_text = urwid.Text("", align='left')
 network_footer_text = urwid.Text("", align='center')
-footer_text = urwid.Text("Q:Quit", align='right')
+footer_text = urwid.Text("Q:Quit  K:Kill Process", align='right')
 
 footer_bar = urwid.AttrMap(urwid.Columns([
     ('weight', 1, battery_footer_text),
@@ -294,19 +328,21 @@ def main(testing=False):
 
     :param testing: Boolean flag for testing mode.
     """
+    global process_list
     if testing:
         return True
     else:
         palette = load_palette_config()
-        loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
+        process_items = urwid.SimpleFocusListWalker(get_process_list(max_processes=10))
+        process_list = urwid.ListBox(process_items)
         
         # Initialize the process list
         initial_process_list = get_process_list(max_processes=10)
         process_items[:] = initial_process_list
         
+        loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
         loop.set_alarm_in(1, update_system_info)
         loop.set_alarm_in(30, refresh_process_list_callback)
-
         loop.run()
 
 
