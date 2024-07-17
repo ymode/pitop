@@ -1,6 +1,0 @@
-plotext==5.2.8
-psutil==5.9.4
-urwid==2.1.2
-
-[:python_version < "3.11"]
-tomli

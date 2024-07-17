@@ -1,2 +1,0 @@
-from .pitop import main
-

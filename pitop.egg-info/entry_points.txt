@@ -1,3 +1,0 @@
-[console_scripts]
-pitop = pitop:main
-
