@@ -2,5 +2,6 @@ urwid==2.1.2
 psutil==5.9.4
 plotext==5.2.8
 tomli; python_version < "3.11"
+flask
 
 
