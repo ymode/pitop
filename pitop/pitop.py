@@ -5,6 +5,8 @@ import os
 import sys
 import logging
 import getpass
+import argparse
+from web_server import run_server
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -341,4 +343,11 @@ def main(testing=False):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Pitop System Monitor")
+    parser.add_argument("--web", action="store_true", help="Run web server instead of TUI")
+    args = parser.parse_args()
+
+    if args.web:
+        run_server()
+    else:
+        main()
