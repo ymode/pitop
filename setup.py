@@ -8,11 +8,11 @@ setup(
     name="pitop",
     version="0.1.0",
     author="ymode",
-    author_email="contact@vectordynamics.com.au",  # Replace with your actual email address
+    author_email="contact@vectordynamics.com.au",
     description="A small python based TUI application",
     long_description=open('README.md').read(),
-    long_description_content_type="text/markdown",  # If your README is in Markdown
-    url="https://github.com/ymode/pitop",  # Replace with the actual URL to your project
+    long_description_content_type="text/markdown",
+    url="https://github.com/ymode/pitop",
     packages=find_packages(),
     install_requires=requirements,
     license="GPL-3.0",
@@ -24,16 +24,11 @@ setup(
     python_requires='>=3.6',
     entry_points={
         'console_scripts': [
-            'pitop=pitop:main',  # Adjust the entry point to reflect how your application is launched
+            'pitop=pitop.pitop:main',
         ],
     },
-    # Include additional files into the package
     include_package_data=True,
-    # If any package data to include in packages, specify them here
     package_data={
-        # If any package contains *.txt or *.rst files, include them:
-        "": ["*.txt", "*.rst"],
-        # And include any *.msg files found in the 'hello' package, too:
-        "hello": ["*.msg"],
+        "pitop": ["*.py"],  # This will include all .py files in the pitop package
     },
 )

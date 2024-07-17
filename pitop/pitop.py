@@ -6,7 +6,7 @@ import sys
 import logging
 import getpass
 import argparse
-from web_server import run_server
+from .web_server import run_server
 
 if sys.version_info >= (3, 11):
     import tomllib
