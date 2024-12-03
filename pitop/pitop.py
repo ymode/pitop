@@ -13,194 +13,284 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-# Global variables
-last_bytes_sent = 0
-last_bytes_recv = 0
-horizontal_line = urwid.Divider(div_char='⏤')
-disk_info_text = urwid.Text("") 
-need_refresh = False
-
+# Set up logging
 logging.basicConfig(filename='pitop_debug.log', level=logging.DEBUG)
 
+# Global variables
+MAX_HISTORY = 50
+cpu_history = []
+memory_history = []
+sort_key = 'cpu_percent'
+sort_reverse = True
+process_filter = ''
+need_refresh = False
+
 class ProcessRow(urwid.WidgetWrap):
+    """A custom widget for displaying process information."""
     def __init__(self, proc_info):
         self.proc_info = proc_info
         self.pid = proc_info['pid']
-        name = proc_info['name'][:23]
-        cpu = f"{proc_info['cpu_percent']:.1f}" if proc_info['cpu_percent'] is not None else "N/A"
-        mem = f"{proc_info['memory_percent']:.2f}"
-        user = proc_info['username'][:15]
+        name = proc_info['name'][:33]
+        cpu = f"{proc_info['cpu_percent']:7.1f}"
+        mem = f"{proc_info['memory_percent']:7.2f}"
+        user = proc_info['username'][:18]
 
         self.cols = urwid.Columns([
-            ('fixed', 25, urwid.Text(name)),
-            ('fixed', 15, urwid.Text(user)),
-            ('fixed', 8, urwid.Text(str(self.pid))),
-            ('fixed', 8, urwid.Text(cpu)),
-            ('fixed', 8, urwid.Text(mem))
+            ('fixed', 35, urwid.Text(('process', name))),
+            ('fixed', 20, urwid.Text(('process', user))),
+            ('fixed', 10, urwid.Text(('process', str(self.pid)))),
+            ('fixed', 10, urwid.Text(('process', cpu))),
+            ('fixed', 10, urwid.Text(('process', mem)))
         ])
-        super().__init__(urwid.AttrMap(self.cols, 'normal', focus_map='highlighted'))
+        super().__init__(urwid.AttrMap(self.cols, 'process', focus_map='highlighted'))
 
     def selectable(self):
         return True
 
     def keypress(self, size, key):
+        if key in ('up', 'down', 'page up', 'page down'):
+            return key
         return key
 
-
-def load_palette_config(path="pitop.toml"):
-    """
-    Load the color palette configuration from a TOML file.
-
-    :param path: Path to the TOML file.
-    :return: A list of palette configurations.
-    """
+def get_process_list(max_processes=10):
+    """Get list of processes sorted by memory usage."""
+    processes = []
     try:
-        with open(path, 'rb') as f:
-            config = tomllib.load(f)
-    except (FileNotFoundError, tomllib.TOMLDecodeError) as e:
-        print(f"Error loading configuration file: {e}")
+        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
+            try:
+                pinfo = proc.info
+                if process_filter and process_filter.lower() not in pinfo['name'].lower():
+                    continue
+                processes.append(ProcessRow({
+                    'pid': pinfo['pid'],
+                    'name': pinfo['name'][:25],
+                    'cpu_percent': pinfo['cpu_percent'] or 0.0,
+                    'memory_percent': pinfo['memory_percent'] or 0.0,
+                    'username': pinfo['username'][:15]
+                }))
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    except Exception as e:
+        logging.error(f"Error getting process list: {e}")
         return []
 
-    palette = [
-        ('header', config['palette']['header_fg'], config['palette']['header_bg']),
-        ('footer', config['palette']['footer_fg'], config['palette']['footer_bg']),
-        ('highlighted', config['palette']['highlighted_fg'], config['palette']['highlighted_bg']),
+    # Sort processes
+    processes.sort(
+        key=lambda x: getattr(x.proc_info, sort_key, 0),
+        reverse=sort_reverse
+    )
+    
+    return processes[:max_processes]
+
+def refresh_process_list_callback(loop, user_data):
+    """Refresh the process list periodically."""
+    global need_refresh
+    try:
+        new_process_list = get_process_list(max_processes=10)
+        if new_process_list:
+            process_list.body[:] = new_process_list
+            logging.debug(f"Process list updated with {len(new_process_list)} items")
+        loop.draw_screen()
+    except Exception as e:
+        logging.error(f"Error in refresh_process_list_callback: {e}")
+    
+    loop.set_alarm_in(30, refresh_process_list_callback)
+
+def create_progress_bar(percent, width=70):
+    """Create a colored progress bar based on percentage."""
+    filled = int(width * percent / 100)
+    empty = width - filled
+    
+    # Get color based on percentage
+    if percent >= 90:
+        color = 'critical'
+    elif percent >= 70:
+        color = 'warning'
+    else:
+        color = 'normal'
+    
+    # Create the bar with proper spacing
+    bar = '█' * filled + '▒' * empty
+    return [
+        ('normal', f"{percent:5.1f}% ["),
+        (color, bar),
+        ('normal', "]")
     ]
 
-    return palette
+def create_mini_graph(values, width=80, height=3):
+    """Create a mini ASCII graph from historical values."""
+    if not values or all(v == 0 for v in values):
+        return [('normal', "Collecting data...")]
+    
+    # Ensure we have enough values
+    while len(values) < width:
+        values.insert(0, 0)
+    values = values[-width:]  # Only keep the last 'width' values
+    
+    # Normalize values to fit height
+    max_val = max(values) if max(values) > 0 else 1
+    normalized = [int((v / max_val) * (height * 8)) for v in values]
+    
+    # Block characters for different heights (8 levels per character)
+    blocks = " ▁▂▃▄▅▆▇█"
+    
+    # Create the graph
+    graph = []
+    for i in range(width):
+        val = values[i]
+        norm_val = normalized[i] // 8
+        remainder = normalized[i] % 8
+        
+        if val >= 90:
+            color = 'critical'
+        elif val >= 70:
+            color = 'warning'
+        else:
+            color = 'normal'
+            
+        if norm_val >= height:
+            graph.append((color, "█"))
+        elif norm_val < 0:
+            graph.append(('normal', " "))
+        else:
+            graph.append((color, blocks[remainder]))
+    
+    # Add percentage indicator on the right
+    current_val = values[-1]
+    graph.extend([
+        ('normal', f" {current_val:5.1f}%")
+    ])
+    
+    return graph
 
+def get_battery_info():
+    """Get detailed battery information."""
+    try:
+        battery = psutil.sensors_battery()
+        if battery:
+            percent = battery.percent
+            charging = battery.power_plugged
+            time_left = ""
+            if battery.secsleft > 0:
+                hours = battery.secsleft // 3600
+                minutes = (battery.secsleft % 3600) // 60
+                time_left = f" ({hours:02d}:{minutes:02d})"
+            
+            icon = "⚡" if charging else "🔋"
+            color = 'normal' if percent > 30 else 'critical'
+            return [(color, f"{icon} {percent}%{time_left}")]
+        return [('normal', "⚡ AC Power")]
+    except Exception as e:
+        logging.error(f"Error getting battery info: {e}")
+        return [('normal', "⚡ AC Power")]
 
+def update_system_info(loop, user_data):
+    """Update all system information displayed in the UI."""
+    global cpu_history, memory_history, need_refresh
+    
+    try:
+        # Update time
+        current_time = datetime.datetime.now()
+        header_time.set_text(current_time.strftime("%Y-%m-%d %H:%M:%S"))
+        
+        # Get system stats
+        cpu_percent = psutil.cpu_percent(interval=None)
+        ram = psutil.virtual_memory()
+        
+        # Update history
+        cpu_history.append(cpu_percent)
+        memory_history.append(ram.percent)
+        if len(cpu_history) > MAX_HISTORY:
+            cpu_history = cpu_history[-MAX_HISTORY:]
+        if len(memory_history) > MAX_HISTORY:
+            memory_history = memory_history[-MAX_HISTORY:]
+        
+        # Create CPU display
+        cpu_text = [('bold', "CPU: ")]
+        cpu_text.extend(create_progress_bar(cpu_percent))
+        cpu_bar.set_text(cpu_text)
+        
+        # Create RAM display
+        ram_text = [('bold', "RAM: ")]
+        ram_text.extend(create_progress_bar(ram.percent))
+        ram_bar.set_text(ram_text)
+        
+        # Update graphs
+        cpu_graph_widget.set_text(create_mini_graph(cpu_history))
+        memory_graph_widget.set_text(create_mini_graph(memory_history))
+        
+        # Update battery info
+        battery = get_battery_info()
+        if battery:
+            battery_widget.set_text(battery)
+        
+        # Update disk info
+        disk_parts = []
+        for part in psutil.disk_partitions(all=False):
+            if os.name == 'nt' and ('cdrom' in part.opts or part.fstype == ''):
+                continue
+            usage = psutil.disk_usage(part.mountpoint)
+            if part.mountpoint == '/':  # Only show root partition
+                disk_parts.append(f"Disk Usage: {usage.used//(1024**3)}GB / {usage.total//(1024**3)}GB ({usage.percent}%)")
+        disk_info_text.set_text("\n".join(disk_parts))
+        
+        # Update process list if needed
+        if need_refresh:
+            process_list.body[:] = get_process_list()
+            need_refresh = False
+            
+    except Exception as e:
+        logging.error(f"Error in update_system_info: {e}")
+    
+    loop.set_alarm_in(1, update_system_info)
+
+def exit_filter_mode(button):
+    """Exit the process filter mode."""
+    urwid.MainLoop.get_current().widget = frame
+
+def on_filter_change(edit, new_text):
+    """Handle changes to the process filter."""
+    global process_filter, need_refresh
+    process_filter = new_text
+    need_refresh = True
 
 def handle_input(key):
+    """Handle keyboard input."""
+    global sort_key, sort_reverse, process_filter, need_refresh
     if key in ('q', 'Q'):
         raise urwid.ExitMainLoop()
     elif key in ('k', 'K'):
         kill_selected_process()
-    elif key == 'up':
-        process_list.keypress((0,), 'up')
-    elif key == 'down':
-        process_list.keypress((0,), 'down')
-
-
-def get_process_list(max_processes=10):
-    process_list = []
-    active_users = get_usernames().split(", ")
-    logging.debug(f"Active users: {active_users}")
-    
-    include_all = len(active_users) == 0 or (len(active_users) == 1 and active_users[0] == '')
-    
-    for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'username']):
-        try:
-            proc_info = {
-                'pid': proc.info['pid'],
-                'name': proc.info['name'],
-                'cpu_percent': proc.info['cpu_percent'],
-                'memory_percent': proc.info['memory_percent'],
-                'username': proc.info['username']
-            }
-            if include_all or proc_info['username'] in active_users:
-                process_list.append(ProcessRow(proc_info))
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
-            logging.debug(f"Error processing a process: {str(e)}")
-        except Exception as e:
-            logging.debug(f"Unexpected error processing a process: {str(e)}")
-    
-    logging.debug(f"Number of processes before sorting: {len(process_list)}")
-    
-    sorted_process_widgets = sorted(
-        process_list,
-        key=lambda x: x.proc_info['memory_percent'] if x.proc_info['memory_percent'] is not None else 0,
-        reverse=True
-    )
-    limited_process_widgets = sorted_process_widgets[:max_processes]
-    
-    logging.debug(f"Number of processes after limiting: {len(limited_process_widgets)}")
-    
-    return limited_process_widgets
-def get_disk_info():
-    """
-    Retrieve information about mounted disks.
-
-    :return: A list of strings with disk information.
-    """
-    disk_info = []
-    for partition in psutil.disk_partitions(all=False):
-        if os.name == 'nt':
-            if 'cdrom' in partition.opts or partition.fstype == '':
-                # skip cd-rom drives with no disk in it on Windows
-                continue
-        usage = psutil.disk_usage(partition.mountpoint)
-        disk_info.append(f"{partition.device} ({partition.mountpoint}): "
-                         f"{usage.used / (1024 * 1024 * 1024):.1f}GB / "
-                         f"{usage.total / (1024 * 1024 * 1024):.1f}GB "
-                         f"({usage.percent}%)")
-    return disk_info
-
-def create_progress_bar(percent, width=20):
-    filled = int(width * percent / 100)
-    empty = width - filled
-    bar = '█' * filled + '░' * empty
-    return f"[{bar}] {percent:.1f}%"
-
-def create_cpu_progress_bar():
-    cpu_percent = psutil.cpu_percent()
-    return f"CPU Usage: {create_progress_bar(cpu_percent)}"
-
-def create_ram_progress_bar():
-    ram = psutil.virtual_memory()
-    return f"RAM Usage: {create_progress_bar(ram.percent)}"
-
-def get_uptime():
-    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
-    now = datetime.datetime.now()
-    uptime_seconds = (now - boot_time).total_seconds()
-    hours, remainder = divmod(int(uptime_seconds), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{hours:04d}:{minutes:02d}:{seconds:02d}"
-
-# Function to get hours since boot
-def get_hours_since_boot():
-    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
-    now = datetime.datetime.now()
-    return int((now - boot_time).total_seconds() // 3600)
-
-def get_usernames():
-    users = psutil.users()
-    usernames = [user.name for user in users]
-    if not usernames:
-        # If no users are returned, add the current user
-        current_user = getpass.getuser()
-        usernames.append(current_user)
-    unique_usernames = list(set(usernames))
-    logging.debug(f"Unique usernames: {unique_usernames}")
-    return ', '.join(unique_usernames)
-
-def get_network_info():
-    """
-    Retrieve current network information.
-
-    :return: A string with network info.
-    """
-    global last_bytes_sent, last_bytes_recv
-    net_io = psutil.net_io_counters()
-    bytes_sent = net_io.bytes_sent - last_bytes_sent
-    bytes_recv = net_io.bytes_recv - last_bytes_recv
-    last_bytes_sent = net_io.bytes_sent
-    last_bytes_recv = net_io.bytes_recv
-    return f"⬆️ {bytes_sent / 1024:.2f} KB, ⬇️ {bytes_recv / 1024:.2f} KB"
-
-def get_battery_info():
-    battery = psutil.sensors_battery()
-    if battery:
-        percent = f"{battery.percent}%"
-        if battery.power_plugged:
-            return f"⚡ {percent}"
+    elif key in ('c', 'C'):  # Sort by CPU
+        if sort_key == 'cpu_percent':
+            sort_reverse = not sort_reverse
         else:
-            return f"🔋 {percent}"
-    else:
-        return "⚡ Plugged In"
+            sort_key = 'cpu_percent'
+            sort_reverse = True
+        need_refresh = True
+    elif key in ('m', 'M'):  # Sort by Memory
+        if sort_key == 'memory_percent':
+            sort_reverse = not sort_reverse
+        else:
+            sort_key = 'memory_percent'
+            sort_reverse = True
+        need_refresh = True
+    elif key in ('p', 'P'):  # Sort by PID
+        if sort_key == 'pid':
+            sort_reverse = not sort_reverse
+        else:
+            sort_key = 'pid'
+            sort_reverse = True
+        need_refresh = True
+    elif key in ('/', '?'):  # Enter filter mode
+        urwid.MainLoop.get_current().widget = filter_overlay
+    elif key == 'esc':  # Clear filter
+        process_filter = ''
+        need_refresh = True
+    return key
 
 def kill_selected_process():
+    """Kill the selected process."""
     focus = process_list.focus
     if focus is not None:
         pid = focus.pid
@@ -212,135 +302,150 @@ def kill_selected_process():
             logging.debug(f"No process found with PID {pid}")
         except psutil.AccessDenied:
             logging.debug(f"Access denied when trying to terminate process with PID {pid}")
-        # Instead of calling refresh_process_list_callback directly, we'll set a flag
         global need_refresh
         need_refresh = True
 
-def update_system_info(loop, user_data):
-    """
-    Update system information and refresh the UI.
-
-    :param loop: The main loop object.
-    :param user_data: Additional user data.
-    """
-    cpu_progress_bar_text.set_text(create_cpu_progress_bar())
-    ram_progress_bar_text.set_text(create_ram_progress_bar())
-    disk_info = get_disk_info()
-    disk_info_text.set_text("\n".join(["Disk Usage:"] + disk_info))
+def load_palette_config():
+    """Load the color palette configuration from the TOML file."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, 'pitop.toml')
     
-    # Update footer information
-    battery_footer_text.set_text(get_battery_info())
-    network_footer_text.set_text(get_network_info())
-    footer_text.set_text("Q:Quit")
-    
-    loop.set_alarm_in(1, update_system_info)
-
-
-def refresh_process_list_callback(loop, user_data):
-    global need_refresh
     try:
-        if need_refresh:
-            new_process_list = get_process_list(max_processes=10)
-            if new_process_list:
-                del process_items[:]
-                process_items.extend(new_process_list)
-                logging.debug(f"Process list updated with {len(new_process_list)} items")
-            else:
-                logging.debug("get_process_list returned an empty list")
-            loop.draw_screen()  # Force a redraw of the screen
-            need_refresh = False
-        else:
-            # Perform regular update
-            new_process_list = get_process_list(max_processes=10)
-            if new_process_list:
-                del process_items[:]
-                process_items.extend(new_process_list)
-                logging.debug(f"Process list updated with {len(new_process_list)} items")
-            else:
-                logging.debug("get_process_list returned an empty list")
-            loop.draw_screen()  # Force a redraw of the screen
-    except Exception as e:
-        logging.debug(f"Error in refresh_process_list_callback: {str(e)}")
-    loop.set_alarm_in(30, refresh_process_list_callback)
+        with open(config_path, 'rb') as f:
+            config = tomllib.load(f)
+    except (FileNotFoundError, tomllib.TOMLDecodeError) as e:
+        logging.error(f"Error loading configuration file: {e}")
+        return [
+            ('header', 'white', 'dark blue'),
+            ('footer', 'white', 'dark blue'),
+            ('body', 'white', 'black'),
+            ('bold', 'white,bold', 'black'),
+            ('process', 'light gray', 'black'),
+            ('highlighted', 'black', 'light gray'),
+            ('normal', 'light green', 'black'),
+            ('warning', 'yellow', 'black'),
+            ('critical', 'light red', 'black'),
+        ]
 
+    return [
+        ('header', config['palette']['header_fg'], config['palette']['header_bg']),
+        ('footer', config['palette']['footer_fg'], config['palette']['footer_bg']),
+        ('body', config['palette']['body_fg'], config['palette']['body_bg']),
+        ('bold', 'white,bold', 'black'),
+        ('process', 'light gray', 'black'),
+        ('highlighted', config['palette']['highlighted_fg'], config['palette']['highlighted_bg']),
+        ('normal', config['palette']['normal_fg'], config['palette']['normal_bg']),
+        ('warning', config['palette']['warning_fg'], config['palette']['warning_bg']),
+        ('critical', config['palette']['critical_fg'], config['palette']['critical_bg']),
+    ]
 
-# Header
-title_text = urwid.Text("Pitop", align='left')
-uptime_text = urwid.Text(str(datetime.datetime.now()), align='center')
-cpu_text = urwid.Text("CPU", align='right')
-
-title_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 0.70, title_text),
-    ('weight', 0.20, uptime_text),
-    ('weight', 0.15, cpu_text)
-], dividechars=1), 'header')
-
-# Body
-cpu_progress_bar_text = urwid.Text(create_cpu_progress_bar(), align='left')
-ram_progress_bar_text = urwid.Text(create_ram_progress_bar(), align='right')
-
-progress_bars = urwid.Columns([
-    ('weight', 1, cpu_progress_bar_text),
-    ('weight', 1, ram_progress_bar_text)
+# Initialize widgets
+header_time = urwid.Text("", align='right')
+header = urwid.Columns([
+    ('weight', 2, urwid.Text("Pitop")),
+    ('weight', 3, header_time),
+    ('weight', 1, urwid.Text("CPU"))
 ])
+header = urwid.AttrMap(header, 'header')
 
-process_items = urwid.SimpleFocusListWalker(get_process_list(max_processes=10))
+# Create widgets
+cpu_bar = urwid.Text("")
+ram_bar = urwid.Text("")
+cpu_graph_widget = urwid.Text("")
+memory_graph_widget = urwid.Text("")
+battery_widget = urwid.Text("")
+disk_info_text = urwid.Text("")
+
+# Process list headers
+column_headers = urwid.AttrMap(urwid.Columns([
+    ('fixed', 35, urwid.Text('Name')),
+    ('fixed', 20, urwid.Text('User')),
+    ('fixed', 10, urwid.Text('PID')),
+    ('fixed', 10, urwid.Text('CPU%')),
+    ('fixed', 10, urwid.Text('MEM%'))
+]), 'header')
+
+# Process list
+process_items = urwid.SimpleFocusListWalker([])
 process_list = urwid.ListBox(process_items)
-column_headers = urwid.Columns([
-    ('fixed', 25, urwid.Text('Name')),
-    ('fixed', 15, urwid.Text('User')),
-    ('fixed', 8, urwid.Text('PID')),
-    ('fixed', 8, urwid.Text('CPU%')),
-    ('fixed', 8, urwid.Text('MEM%'))
+
+# Stats section
+stats_pile = urwid.Pile([
+    urwid.Text(""),  # Spacer
+    cpu_bar,
+    ram_bar,
+    urwid.Text(""),  # Spacer
 ])
 
-# Footer
-# Footer
-battery_footer_text = urwid.Text("", align='left')
-network_footer_text = urwid.Text("", align='center')
-footer_text = urwid.Text("Q:Quit  K:Kill Process", align='right')
-
-footer_bar = urwid.AttrMap(urwid.Columns([
-    ('weight', 1, battery_footer_text),
-    ('weight', 1, network_footer_text),
-    ('weight', 1, footer_text)
-], dividechars=1), 'footer')
-
+# Main layout
 body_content = urwid.Pile([
-    ('pack', progress_bars),
-    ('pack', urwid.AttrMap(column_headers, 'header')),
-    process_list,
-    ('pack', horizontal_line),
-    ('pack', disk_info_text), 
-    ('weight', 1, urwid.Filler(urwid.Divider(), 'top')),
+    ('pack', header),
+    ('pack', urwid.AttrMap(urwid.Divider('─'), 'header')),
+    ('pack', battery_widget),
+    ('pack', stats_pile),
+    ('pack', urwid.AttrMap(urwid.Divider('─'), 'header')),
+    ('pack', urwid.AttrMap(urwid.Text(" CPU History"), 'header')),
+    ('pack', urwid.LineBox(cpu_graph_widget)),
+    ('pack', urwid.AttrMap(urwid.Text(" Memory History"), 'header')),
+    ('pack', urwid.LineBox(memory_graph_widget)),
+    ('pack', urwid.AttrMap(urwid.Divider('─'), 'header')),
+    ('pack', column_headers),
+    ('weight', 1, urwid.LineBox(process_list)),
+    ('pack', urwid.AttrMap(urwid.Divider('─'), 'header')),
+    ('pack', disk_info_text)
 ])
 
-frame = urwid.Frame(header=title_bar, body=body_content, footer=footer_bar)
+# Main frame
+frame = urwid.Frame(
+    urwid.AttrMap(body_content, 'body'),
+    footer=urwid.AttrMap(
+        urwid.Text("Q:Quit  K:Kill  C:Sort CPU  M:Sort Memory  P:Sort PID  /:Filter  ESC:Clear Filter", align='center'),
+        'footer'
+    )
+)
 
+# Create filter overlay
+filter_edit = urwid.Edit("Filter: ")
+urwid.connect_signal(filter_edit, 'change', on_filter_change)
+filter_done = urwid.Button("Done")
+urwid.connect_signal(filter_done, 'click', exit_filter_mode)
+filter_pile = urwid.Pile([filter_edit, filter_done])
+filter_overlay = urwid.Overlay(
+    urwid.LineBox(filter_pile),
+    frame,
+    'center', 30,
+    'middle', 5
+)
 
 def main(testing=False):
-    """
-    Main function to run the Pitop application.
-
-    :param testing: Boolean flag for testing mode.
-    """
-    global process_list
-    if testing:
-        return True
-    else:
+    """Main function to run the application."""
+    global process_list, frame, cpu_history, memory_history
+    
+    try:
+        if testing:
+            return True
+            
+        # Initialize histories
+        cpu_history = []
+        memory_history = []
+        
+        # Load color palette
         palette = load_palette_config()
-        process_items = urwid.SimpleFocusListWalker(get_process_list(max_processes=10))
-        process_list = urwid.ListBox(process_items)
         
-        # Initialize the process list
-        initial_process_list = get_process_list(max_processes=10)
-        process_items[:] = initial_process_list
+        # Initialize process list
+        initial_processes = get_process_list(max_processes=10)
+        process_items = urwid.SimpleFocusListWalker(initial_processes)
+        process_list.body[:] = process_items
         
+        # Create and run the main loop
         loop = urwid.MainLoop(frame, palette=palette, unhandled_input=handle_input)
         loop.set_alarm_in(1, update_system_info)
         loop.set_alarm_in(30, refresh_process_list_callback)
         loop.run()
-
+        
+    except Exception as e:
+        logging.error(f"Error in main: {e}")
+        return False
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Pitop System Monitor")
@@ -350,4 +455,4 @@ if __name__ == "__main__":
     if args.web:
         run_server()
     else:
-        main()
+        main() 

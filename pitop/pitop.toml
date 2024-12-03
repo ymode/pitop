@@ -1,14 +1,30 @@
 # Palette Configuration for Pitop
 
 [palette]
-# Header color configuration
-header_fg = "black"
-header_bg = "light blue"
+# Base colors
+header_fg = "white"
+header_bg = "dark blue"
+footer_fg = "white"
+footer_bg = "dark blue"
+body_fg = "white"
+body_bg = "black"
 
-# Footer color configuration
-footer_fg = "black"
-footer_bg = "light blue"
-
-# Highlighted item color configuration
+# Item highlighting
 highlighted_fg = "black"
-highlighted_bg = "yellow"
+highlighted_bg = "light gray"
+
+# Status colors
+normal_fg = "light green"
+normal_bg = "black"
+warning_fg = "yellow"
+warning_bg = "black"
+critical_fg = "light red"
+critical_bg = "black"
+
+# Process colors
+process_fg = "light gray"
+process_bg = "black"
+
+# Graph colors
+graph_fg = "white"
+graph_bg = "black"

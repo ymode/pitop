@@ -3,5 +3,7 @@ psutil==5.9.4
 plotext==5.2.8
 tomli; python_version < "3.11"
 flask
+py3nvml==0.2.7
+wmi==1.5.1; sys_platform == 'win32'
 
 
