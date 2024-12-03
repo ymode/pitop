@@ -24,6 +24,8 @@ sort_key = 'cpu_percent'
 sort_reverse = True
 process_filter = ''
 need_refresh = False
+last_bytes_sent = 0
+last_bytes_recv = 0
 
 class ProcessRow(urwid.WidgetWrap):
     """A custom widget for displaying process information."""
@@ -132,7 +134,7 @@ def create_mini_graph(values, width=80, height=3):
     normalized = [int((v / max_val) * (height * 8)) for v in values]
     
     # Block characters for different heights (8 levels per character)
-    blocks = " ▁▂▃▄▅▆▇█"
+    blocks = " ▁▂▃▄▅▆█"
     
     # Create the graph
     graph = []
@@ -184,6 +186,51 @@ def get_battery_info():
         logging.error(f"Error getting battery info: {e}")
         return [('normal', "⚡ AC Power")]
 
+def get_uptime():
+    """Get the system uptime in a nicely formatted string."""
+    boot_time = psutil.boot_time()
+    now = datetime.datetime.now()
+    uptime = now - datetime.datetime.fromtimestamp(boot_time)
+    
+    days = uptime.days
+    hours = uptime.seconds // 3600
+    minutes = (uptime.seconds % 3600) // 60
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days}d")
+    if hours > 0 or days > 0:
+        parts.append(f"{hours}h")
+    parts.append(f"{minutes}m")
+    
+    return "⏱️ " + " ".join(parts)
+
+def get_network_text(sent_rate, recv_rate):
+    """Get colored network rate text based on thresholds."""
+    def get_rate_color(rate):
+        if rate > 1024:  # More than 1 MB/s
+            return 'critical'
+        elif rate > 512:  # More than 512 KB/s
+            return 'warning'
+        return 'normal'
+    
+    # Format rates with appropriate units
+    def format_rate(rate):
+        if rate > 1024:
+            return f"{rate/1024:.1f}MB/s"
+        return f"{rate:.1f}KB/s"
+    
+    sent_color = get_rate_color(sent_rate)
+    recv_color = get_rate_color(recv_rate)
+    
+    return [
+        ('bold', "Network: "),
+        ('normal', "⬆️ "),
+        (sent_color, format_rate(sent_rate)),
+        ('normal', "  ⬇️ "),
+        (recv_color, format_rate(recv_rate))
+    ]
+
 def update_system_info(loop, user_data):
     """Update all system information displayed in the UI."""
     global cpu_history, memory_history, need_refresh
@@ -192,6 +239,29 @@ def update_system_info(loop, user_data):
         # Update time
         current_time = datetime.datetime.now()
         header_time.set_text(current_time.strftime("%Y-%m-%d %H:%M:%S"))
+        
+        # Update uptime with bold label
+        uptime_widget.set_text([('bold', "Uptime: "), ('normal', get_uptime())])
+        
+        # Update network usage
+        net_io = psutil.net_io_counters()
+        bytes_sent = net_io.bytes_sent
+        bytes_recv = net_io.bytes_recv
+        
+        if not hasattr(update_system_info, 'last_bytes_sent'):
+            update_system_info.last_bytes_sent = bytes_sent
+            update_system_info.last_bytes_recv = bytes_recv
+        
+        # Calculate rates
+        sent_rate = (bytes_sent - update_system_info.last_bytes_sent) / 1024  # KB/s
+        recv_rate = (bytes_recv - update_system_info.last_bytes_recv) / 1024  # KB/s
+        
+        # Update last values
+        update_system_info.last_bytes_sent = bytes_sent
+        update_system_info.last_bytes_recv = bytes_recv
+        
+        # Set colored network text
+        network_widget.set_text(get_network_text(sent_rate, recv_rate))
         
         # Get system stats
         cpu_percent = psutil.cpu_percent(interval=None)
@@ -355,6 +425,8 @@ cpu_graph_widget = urwid.Text("")
 memory_graph_widget = urwid.Text("")
 battery_widget = urwid.Text("")
 disk_info_text = urwid.Text("")
+uptime_widget = urwid.Text("")
+network_widget = urwid.Text("")
 
 # Process list headers
 column_headers = urwid.AttrMap(urwid.Columns([
@@ -374,6 +446,9 @@ stats_pile = urwid.Pile([
     urwid.Text(""),  # Spacer
     cpu_bar,
     ram_bar,
+    urwid.Text(""),  # Spacer for separation
+    uptime_widget,  # Add uptime widget
+    network_widget,  # Add network widget
     urwid.Text(""),  # Spacer
 ])
 
