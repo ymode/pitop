@@ -1,9 +1,5 @@
-urwid==2.1.2
-psutil==5.9.4
-plotext==5.2.8
+urwid>=2.1.2
+psutil>=5.9.0
 tomli; python_version < "3.11"
 flask
-py3nvml==0.2.7
-wmi==1.5.1; sys_platform == 'win32'
-
-
+wmi>=1.5.1; sys_platform == "win32"

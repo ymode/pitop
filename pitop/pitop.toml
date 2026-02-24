@@ -1,19 +1,20 @@
-# Palette Configuration for Pitop
+# pitop configuration
+# Customise colours and display settings to your liking.
 
 [palette]
-# Base colors
-header_fg = "white"
+# Base colours (urwid colour names)
+header_fg = "white,bold"
 header_bg = "dark blue"
 footer_fg = "white"
 footer_bg = "dark blue"
-body_fg = "white"
+body_fg = "light gray"
 body_bg = "black"
 
-# Item highlighting
-highlighted_fg = "black"
+# Selected process row
+highlighted_fg = "black,bold"
 highlighted_bg = "light gray"
 
-# Status colors
+# Progress bars and graphs
 normal_fg = "light green"
 normal_bg = "black"
 warning_fg = "yellow"
@@ -21,10 +22,22 @@ warning_bg = "black"
 critical_fg = "light red"
 critical_bg = "black"
 
-# Process colors
+# Process list text
 process_fg = "light gray"
 process_bg = "black"
 
-# Graph colors
-graph_fg = "white"
-graph_bg = "black"
+[display]
+# Sparkline graph height in terminal rows (1-5)
+graph_height = 3
+
+# Maximum processes shown in the table
+max_processes = 50
+
+# Seconds between metric refreshes
+update_interval = 1
+
+# How many data points to keep for graphs
+max_history = 120
+
+# Process list refreshes every N update ticks (saves CPU)
+process_update_interval = 3
